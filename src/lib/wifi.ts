@@ -67,7 +67,7 @@ export const VOUCHER_LENGTH = 8;
 export function makeVoucherCode(randomBytes: Uint8Array): string {
   let code = "";
   for (let i = 0; i < VOUCHER_LENGTH; i++) {
-    code += VOUCHER_ALPHABET[randomBytes[i] % VOUCHER_ALPHABET.length];
+    code += VOUCHER_ALPHABET[(randomBytes[i] ?? 0) % VOUCHER_ALPHABET.length];
   }
   return code;
 }

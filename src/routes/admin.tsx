@@ -365,7 +365,7 @@ function EmptyRow({ cols, text }: { cols: number; text: string }) {
   );
 }
 
-function StatusPill({ status, title }: { status: string; title?: string }) {
+function StatusPill({ status, title }: { status: string; title?: string | undefined }) {
   const tone =
     status === "active" || status === "success"
       ? "bg-success/15 text-success"
@@ -414,7 +414,7 @@ function AddUser({ token, onDone, onLogout }: { token: string; onDone: () => voi
     setBusy(true);
     try {
       const r = await addFn({ data: { token, mac, phone: phone || undefined, packageId: pkg } });
-      if (!r.ok) return toast.error(r.error);
+      if (!r.ok) { toast.error(r.error); return; }
       toast.success(`Online until ${new Date(r.expiry).toLocaleString("en-KE")}`);
       setMac("");
       setPhone("");
@@ -463,11 +463,11 @@ function VoucherPanel({
 
   async function generate() {
     const n = Number(count);
-    if (!Number.isInteger(n) || n < 1 || n > 500) return toast.error("Choose between 1 and 500 codes");
+    if (!Number.isInteger(n) || n < 1 || n > 500) { toast.error("Choose between 1 and 500 codes"); return; }
     setBusy(true);
     try {
       const r = await genFn({ data: { token, packageId: pkg, count: n } });
-      if (!r.ok) return toast.error(r.error);
+      if (!r.ok) { toast.error(r.error); return; }
       setFresh({ codes: r.codes, pkg });
       toast.success(`${r.codes.length} vouchers created`);
       onDone();

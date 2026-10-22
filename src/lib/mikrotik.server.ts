@@ -23,7 +23,7 @@ async function ros(cfg: RouterConfig, method: string, path: string, body?: unkno
   const res = await fetch(`${cfg.url}/rest${path}`, {
     method,
     headers: { Authorization: cfg.auth, "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? JSON.stringify(body) : null,
   });
   if (!res.ok) throw new Error(`RouterOS ${method} ${path} -> ${res.status} ${await res.text()}`);
   return res.status === 204 ? null : res.json();

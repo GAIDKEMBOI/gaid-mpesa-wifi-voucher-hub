@@ -16,15 +16,15 @@ import {
 import { cn } from "@/lib/utils";
 
 interface PortalSearch {
-  mac?: string;
-  ip?: string;
-  "link-orig"?: string;
+  mac?: string | undefined;
+  ip?: string | undefined;
+  "link-orig"?: string | undefined;
 }
 
 export const Route = createFileRoute("/")({
   validateSearch: (s: Record<string, unknown>): PortalSearch => ({
-    mac: typeof s.mac === "string" ? s.mac : undefined,
-    ip: typeof s.ip === "string" ? s.ip : undefined,
+    mac: typeof s["mac"] === "string" ? s["mac"] : undefined,
+    ip: typeof s["ip"] === "string" ? s["ip"] : undefined,
     "link-orig": typeof s["link-orig"] === "string" ? (s["link-orig"] as string) : undefined,
   }),
   head: () => ({
@@ -170,12 +170,12 @@ function Portal() {
 
   function useTestDevice() {
     const bytes = crypto.getRandomValues(new Uint8Array(6));
-    bytes[0] = (bytes[0] | 0x02) & 0xfe; // locally administered
+    bytes[0] = ((bytes[0] ?? 0) | 0x02) & 0xfe; // locally administered
     saveMac(Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(":"));
   }
 
   async function pay() {
-    if (!mac) return toast.error("Device not detected yet. Enter the device MAC below.");
+    if (!mac) { toast.error("Device not detected yet. Enter the device MAC below."); return; }
     setBusy(true);
     try {
       const r = await payFn({ data: { phone, mac, packageId: pkgId } });
@@ -195,7 +195,7 @@ function Portal() {
   }
 
   async function redeem() {
-    if (!mac) return toast.error("Device not detected yet. Enter the device MAC below.");
+    if (!mac) { toast.error("Device not detected yet. Enter the device MAC below."); return; }
     setBusy(true);
     try {
       const r = await voucherFn({ data: { code: voucher, mac } });

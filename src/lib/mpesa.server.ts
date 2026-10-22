@@ -6,7 +6,7 @@ export interface MpesaConfig {
   consumerSecret: string;
   shortcode: string; // Paybill number, or the Store/Head-office number for a Till
   passkey: string;
-  tillNumber?: string; // set for Buy Goods (Till)
+  tillNumber?: string | undefined; // set for Buy Goods (Till)
   baseUrl: string;
 }
 
@@ -88,8 +88,8 @@ export async function stkPush(
     throw new Error(json["errorMessage"] || json["CustomerMessage"] || "M-Pesa request failed. Try again.");
   }
   return {
-    merchantRequestId: json["MerchantRequestID"],
-    checkoutRequestId: json["CheckoutRequestID"],
+    merchantRequestId: json["MerchantRequestID"] ?? "",
+    checkoutRequestId: json["CheckoutRequestID"] ?? "",
   };
 }
 
