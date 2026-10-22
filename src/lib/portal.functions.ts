@@ -77,7 +77,7 @@ export const startPayment = createServerFn({ method: "POST" })
           phone,
           amount: pkg.price,
           callbackUrl: `${base.replace(/\/$/, "")}/api/public/mpesa/callback?t=${callbackToken}`,
-          reference: "BRADYWIFI",
+          reference: "GAIDWIFI",
           description: `WiFi ${pkg.label}`,
         });
         await db

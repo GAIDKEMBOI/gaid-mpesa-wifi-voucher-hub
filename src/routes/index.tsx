@@ -29,12 +29,12 @@ export const Route = createFileRoute("/")({
   }),
   head: () => ({
     meta: [
-      { title: "Sign in to BRADY WIFI — Fast & Affordable" },
+      { title: "Sign in to GAID WIFI SERVICES — Fast & Affordable" },
       {
         name: "description",
-        content: "Get online with BRADY WIFI. 1 hour from KES 20. Pay instantly with Lipa na M-Pesa.",
+        content: "Get online with GAID WIFI SERVICES. 1 hour from KES 20. Pay instantly with Lipa na M-Pesa.",
       },
-      { property: "og:title", content: "BRADY WIFI — Fast & Affordable" },
+      { property: "og:title", content: "GAID WIFI SERVICES — Fast & Affordable" },
       { property: "og:description", content: "1 Hour KES 20 · 6 Hours KES 50 · 24 Hours KES 100 · 7 Days KES 500" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -43,8 +43,8 @@ export const Route = createFileRoute("/")({
   component: Portal,
 });
 
-const MAC_KEY = "brady_mac";
-const TXN_KEY = "brady_txn";
+const MAC_KEY = "gaid_mac";
+const TXN_KEY = "gaid_txn";
 
 type Stage = "choose" | "paying" | "online" | "failed";
 
@@ -223,7 +223,7 @@ function Portal() {
             <Wifi className="h-7 w-7" strokeWidth={2.5} />
           </div>
           <h1 className="font-display text-5xl leading-none text-foreground">
-            BRADY <span className="text-primary">WIFI</span>
+            GAID <span className="text-primary">WIFI</span> SERVICES
           </h1>
           <p className="font-display mt-1 text-xl tracking-[0.2em] text-muted-foreground">
             FAST & AFFORDABLE
@@ -232,7 +232,7 @@ function Portal() {
 
         {blocked && (
           <div className="mb-4 rounded-xl border border-destructive/50 bg-destructive/10 p-4 text-center text-sm">
-            This device has been blocked. Please contact the BRADY WIFI admin.
+            This device has been blocked. Please contact the GAID WIFI SERVICES admin.
           </div>
         )}
 
@@ -404,7 +404,7 @@ function Portal() {
             </summary>
             <p className="mt-2 text-muted-foreground">
               On the hotspot your device is detected automatically. For testing, enter this phone's WiFi MAC
-              address (Settings → WiFi → BRADY WIFI → Advanced).
+              address (Settings → WiFi → GAID WIFI SERVICES → Advanced).
             </p>
             <div className="mt-3 flex gap-2">
               <Input
@@ -424,7 +424,7 @@ function Portal() {
         )}
 
         <footer className="mt-auto pt-8 text-center text-xs text-muted-foreground">
-          © BRADY WIFI · Powered by Lipa na M-Pesa
+          © GAID WIFI SERVICES · Powered by Lipa na M-Pesa
         </footer>
       </div>
     </main>

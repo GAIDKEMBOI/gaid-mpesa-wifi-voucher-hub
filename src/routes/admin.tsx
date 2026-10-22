@@ -24,10 +24,10 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
-      { title: "Admin — BRADY WIFI" },
-      { name: "description", content: "BRADY WIFI hotspot admin: active users, M-Pesa collections and vouchers." },
-      { property: "og:title", content: "Admin — BRADY WIFI" },
-      { property: "og:description", content: "Manage BRADY WIFI customers, payments and vouchers." },
+      { title: "Admin — GAID WIFI SERVICES" },
+      { name: "description", content: "GAID WIFI SERVICES hotspot admin: active users, M-Pesa collections and vouchers." },
+      { property: "og:title", content: "Admin — GAID WIFI SERVICES" },
+      { property: "og:description", content: "Manage GAID WIFI SERVICES customers, payments and vouchers." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -36,7 +36,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-const TOKEN_KEY = "brady_admin_token";
+const TOKEN_KEY = "gaid_admin_token";
 
 function AdminPage() {
   const [token, setToken] = useState<string | null>(null);
@@ -92,7 +92,7 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
       <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-2xl border border-border bg-card p-6 shadow-card">
         <div className="text-center">
           <h1 className="font-display text-4xl">
-            BRADY <span className="text-primary">WIFI</span>
+            GAID <span className="text-primary">WIFI</span> SERVICES
           </h1>
           <p className="text-sm text-muted-foreground">Admin login</p>
         </div>
@@ -177,7 +177,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
       <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <h1 className="font-display text-2xl">
-            BRADY <span className="text-primary">WIFI</span> <span className="text-muted-foreground">ADMIN</span>
+            GAID <span className="text-primary">WIFI</span> <span className="text-muted-foreground">ADMIN</span>
           </h1>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={refresh} aria-label="Refresh">
@@ -483,7 +483,7 @@ function VoucherPanel({
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `brady-vouchers-${p}.csv`;
+    a.download = `gaid-vouchers-${p}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -522,7 +522,7 @@ function VoucherPanel({
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
             {fresh.codes.map((c) => (
               <div key={c} className="rounded-lg border border-dashed border-border p-2 text-center">
-                <div className="font-display text-xs text-primary">BRADY WIFI · {getPackage(fresh.pkg)?.label}</div>
+                <div className="font-display text-xs text-primary">GAID WIFI SERVICES · {getPackage(fresh.pkg)?.label}</div>
                 <div className="font-mono text-lg tracking-widest">{c}</div>
               </div>
             ))}

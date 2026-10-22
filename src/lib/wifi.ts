@@ -1,4 +1,4 @@
-// Shared, browser-safe business rules for BRADY WIFI.
+// Shared, browser-safe business rules for GAID WIFI SERVICES.
 
 export type PackageId = "1h" | "6h" | "24h" | "7d";
 

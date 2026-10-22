@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/setup")({
   head: () => ({
     meta: [
-      { title: "Hotspot Setup Guide — BRADY WIFI" },
+      { title: "Hotspot Setup Guide — GAID WIFI SERVICES" },
       {
         name: "description",
-        content: "Connect the Safaricom fibre router, MikroTik hotspot and CPE210 / Tenda O3 to broadcast BRADY WIFI.",
+        content: "Connect the Safaricom fibre router, MikroTik hotspot and CPE210 / Tenda O3 to broadcast GAID WIFI SERVICES.",
       },
-      { property: "og:title", content: "Hotspot Setup Guide — BRADY WIFI" },
-      { property: "og:description", content: "Wiring, captive portal popup and M-Pesa setup for BRADY WIFI." },
+      { property: "og:title", content: "Hotspot Setup Guide — GAID WIFI SERVICES" },
+      { property: "og:description", content: "Wiring, captive portal popup and M-Pesa setup for GAID WIFI SERVICES." },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -68,7 +68,7 @@ function SetupPage() {
 
   const loginHtml = `<html><head>
 <meta http-equiv="refresh" content="0; url=${origin}/?mac=$(mac)&ip=$(ip)&link-orig=$(link-orig-esc)">
-</head><body>Loading BRADY WIFI...</body></html>`;
+</head><body>Loading GAID WIFI SERVICES...</body></html>`;
 
   const mikrotik = `/ip hotspot walled-garden
 add dst-host=${host}
@@ -77,7 +77,7 @@ add dst-host=fonts.googleapis.com
 add dst-host=fonts.gstatic.com
 add dst-host=*.safaricom.co.ke
 /ip service set www-ssl disabled=no
-/user add name=bradyapi group=full password=CHANGE-ME`;
+/user add name=gaidapi group=full password=CHANGE-ME`;
 
   return (
     <main className="bg-hero min-h-dvh">
@@ -87,14 +87,14 @@ add dst-host=*.safaricom.co.ke
             ← Back to admin
           </Link>
           <h1 className="font-display mt-2 text-5xl leading-none">
-            BRADY <span className="text-primary">WIFI</span> SETUP
+            GAID <span className="text-primary">WIFI</span> SERVICES SETUP
           </h1>
-          <p className="mt-2 text-muted-foreground">From Safaricom fibre to a working “Sign in to BRADY WIFI” popup.</p>
+          <p className="mt-2 text-muted-foreground">From Safaricom fibre to a working “Sign in to GAID WIFI SERVICES” popup.</p>
         </header>
 
         <Step n={1} title="Wiring">
           <p>
-            Basic: <strong>Safaricom router LAN → to CPE210 PoE → broadcasts BRADY WIFI</strong>.
+            Basic: <strong>Safaricom router LAN → to CPE210 PoE → broadcasts GAID WIFI SERVICES</strong>.
           </p>
           <p>
             The CPE210 / Tenda O3 only broadcasts WiFi — it can't show the sign-in popup or switch internet on and off
@@ -108,13 +108,13 @@ add dst-host=*.safaricom.co.ke
             <ArrowDown className="mx-auto h-4 w-4 text-primary" />
             <Box>PoE injector (LAN in → PoE out)</Box>
             <ArrowDown className="mx-auto h-4 w-4 text-primary" />
-            <Box accent>CPE210 / Tenda O3 — AP mode — SSID “BRADY WIFI”, open</Box>
+            <Box accent>CPE210 / Tenda O3 — AP mode — SSID “GAID WIFI SERVICES”, open</Box>
           </div>
         </Step>
 
         <Step n={2} title="Access point (CPE210 / Tenda O3)">
           <p>
-            Set <strong>Operation mode: Access Point</strong>, SSID <strong>BRADY WIFI</strong>, security{" "}
+            Set <strong>Operation mode: Access Point</strong>, SSID <strong>GAID WIFI SERVICES</strong>, security{" "}
             <strong>None</strong>, and turn off its DHCP server so the MikroTik hands out addresses.
           </p>
         </Step>
@@ -122,11 +122,11 @@ add dst-host=*.safaricom.co.ke
         <Step n={3} title="MikroTik hotspot = the auto popup">
           <p>
             In Winbox: <strong>IP → Hotspot → Hotspot Setup</strong> on ether2. Android and iPhone detect the hotspot
-            and show <strong>“Sign in to BRADY WIFI”</strong> automatically.
+            and show <strong>“Sign in to GAID WIFI SERVICES”</strong> automatically.
           </p>
           <p>
             Then in <strong>Files → hotspot/login.html</strong>, replace the content with this so the popup opens the
-            BRADY WIFI portal and passes the phone's MAC:
+            GAID WIFI SERVICES portal and passes the phone's MAC:
           </p>
           <Code>{loginHtml}</Code>
           <p>Allow the portal and M-Pesa before login (walled garden), and enable the router API:</p>
@@ -162,7 +162,7 @@ add dst-host=*.safaricom.co.ke
             test device), then buy a package or redeem a voucher. Watch it appear in the admin dashboard.
           </p>
           <p>
-            Tip: phones use a random MAC per network. Set <strong>Privacy → Use device MAC</strong> for BRADY WIFI when
+            Tip: phones use a random MAC per network. Set <strong>Privacy → Use device MAC</strong> for GAID WIFI SERVICES when
             adding devices manually.
           </p>
         </Step>

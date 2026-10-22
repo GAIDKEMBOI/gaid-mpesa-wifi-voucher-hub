@@ -61,7 +61,7 @@ async function setBinding(mac: string, type: "bypassed" | "blocked" | null, comm
 }
 
 export const router = {
-  allowMac: (mac: string, expiry: Date) => setBinding(mac, "bypassed", `BRADY until ${expiry.toISOString()}`),
-  removeMac: (mac: string) => setBinding(mac, null, "BRADY expired"),
-  blockMac: (mac: string) => setBinding(mac, "blocked", "BRADY blocked"),
+  allowMac: (mac: string, expiry: Date) => setBinding(mac, "bypassed", `GAID until ${expiry.toISOString()}`),
+  removeMac: (mac: string) => setBinding(mac, null, "GAID expired"),
+  blockMac: (mac: string) => setBinding(mac, "blocked", "GAID blocked"),
 };
