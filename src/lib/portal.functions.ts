@@ -10,7 +10,7 @@ import {
   getActiveSession,
   isBlocked,
 } from "@/lib/access.server";
-import { getMpesaConfig, interpretResultCode, mpesaMode, stkPush, stkQuery } from "@/lib/mpesa.server";
+import { getMpesaConfig, mpesaMode, stkPush, stkQuery } from "@/lib/mpesa.server";
 
 const macSchema = z
   .string()
@@ -153,5 +153,3 @@ export const redeemVoucher = createServerFn({ method: "POST" })
     return { ok: true as const, expiry: expiry.toISOString() };
   });
 
-// Re-exported so the callback route shares the same result-code mapping.
-export { interpretResultCode };
