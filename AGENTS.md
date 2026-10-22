@@ -8,3 +8,11 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+## Architecture rules (GAID WIFI SERVICES)
+- Business rules (packages, prices, phone/MAC/voucher formats) live only in `src/lib/wifi.ts` and are covered by `src/test/wifi-rules.test.ts`; why: one source of truth shared by portal, admin and server.
+- All database access goes through server functions using the service-role client; tables have RLS on with no policies. Why: customers are anonymous and admin uses a signed token, not database accounts.
+- Admin auth is an HMAC-signed token (ADMIN_SESSION_SECRET) checked by `requireAdmin` in every admin server function; credentials come from ADMIN_USERNAME/ADMIN_PASSWORD env with defaults. Why: user asked for a simple fixed login.
+- M-Pesa (Daraja) lives in `src/lib/mpesa.server.ts` and falls back to mock mode when keys are missing; callbacks are verified with a per-transaction secret token in the callback URL. Why: Daraja callbacks are unsigned.
+- Router control lives in `src/lib/mikrotik.server.ts` (simulated unless MIKROTIK_* env set); the `users` table is the allowed list. Why: works without hardware during testing.
+- Expiry is enforced by a per-minute managed HTTP schedule hitting `/api/public/jobs/expire-users`, plus lazy sweeps on admin loads. Why: router bindings must be removed even when nobody opens the app.
