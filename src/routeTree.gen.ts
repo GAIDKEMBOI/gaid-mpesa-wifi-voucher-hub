@@ -10,12 +10,24 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as SetupRouteImport } from './routes/setup'
 import { Route as ApiPublicJobsExpireUsersRouteImport } from './routes/api/public/jobs/expire-users'
 import { Route as ApiPublicMpesaCallbackRouteImport } from './routes/api/public/mpesa/callback'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicJobsExpireUsersRoute =
@@ -32,35 +44,54 @@ const ApiPublicMpesaCallbackRoute = ApiPublicMpesaCallbackRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/setup': typeof SetupRoute
   '/api/public/jobs/expire-users': typeof ApiPublicJobsExpireUsersRoute
   '/api/public/mpesa/callback': typeof ApiPublicMpesaCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/setup': typeof SetupRoute
   '/api/public/jobs/expire-users': typeof ApiPublicJobsExpireUsersRoute
   '/api/public/mpesa/callback': typeof ApiPublicMpesaCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/setup': typeof SetupRoute
   '/api/public/jobs/expire-users': typeof ApiPublicJobsExpireUsersRoute
   '/api/public/mpesa/callback': typeof ApiPublicMpesaCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/api/public/jobs/expire-users' | '/api/public/mpesa/callback'
+    | '/'
+    | '/admin'
+    | '/setup'
+    | '/api/public/jobs/expire-users'
+    | '/api/public/mpesa/callback'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/jobs/expire-users' | '/api/public/mpesa/callback'
+  to:
+    | '/'
+    | '/admin'
+    | '/setup'
+    | '/api/public/jobs/expire-users'
+    | '/api/public/mpesa/callback'
   id:
     | '__root__'
     | '/'
+    | '/admin'
+    | '/setup'
     | '/api/public/jobs/expire-users'
     | '/api/public/mpesa/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
+  SetupRoute: typeof SetupRoute
   ApiPublicJobsExpireUsersRoute: typeof ApiPublicJobsExpireUsersRoute
   ApiPublicMpesaCallbackRoute: typeof ApiPublicMpesaCallbackRoute
 }
@@ -72,6 +103,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/jobs/expire-users': {
@@ -93,6 +138,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
+  SetupRoute: SetupRoute,
   ApiPublicJobsExpireUsersRoute: ApiPublicJobsExpireUsersRoute,
   ApiPublicMpesaCallbackRoute: ApiPublicMpesaCallbackRoute,
 }
