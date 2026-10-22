@@ -201,7 +201,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <Stat icon={<Wifi />} label="Active users now" value={d ? String(d.activeNow) : "—"} />
           <Stat icon={<Wallet />} label="Today collection" value={d ? `KES ${d.collectionToday.toLocaleString()}` : "—"} highlight />
           <Stat icon={<Users />} label="Total users today" value={d ? String(d.usersToday) : "—"} />
@@ -333,11 +333,11 @@ function ModeBadge({ label, value, warn }: { label: string; value: string; warn:
 
 function Stat({ icon, label, value, highlight }: { icon: React.ReactNode; label: string; value: string; highlight?: boolean }) {
   return (
-    <div className={cn("rounded-2xl border bg-card p-4 shadow-card", highlight ? "border-primary" : "border-border")}>
-      <div className="flex items-center gap-2 text-sm text-muted-foreground [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-primary">
+    <div className={cn("rounded-2xl border bg-card p-3 shadow-card sm:p-4", highlight ? "border-primary" : "border-border")}>
+      <div className="flex items-center gap-1.5 text-xs leading-tight text-muted-foreground sm:text-sm [&_svg]:hidden [&_svg]:h-4 [&_svg]:w-4 [&_svg]:shrink-0 [&_svg]:text-primary sm:[&_svg]:block">
         {icon} {label}
       </div>
-      <div className="font-display mt-1 text-4xl text-foreground">{value}</div>
+      <div className="font-display mt-1 text-2xl text-foreground sm:text-4xl">{value}</div>
     </div>
   );
 }
