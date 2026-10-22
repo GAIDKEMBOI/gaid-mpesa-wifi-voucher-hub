@@ -14,7 +14,147 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      blocked_macs: {
+        Row: {
+          created_at: string
+          mac: string
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          mac: string
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          mac?: string
+          reason?: string | null
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          callback_token: string
+          checkout_request_id: string | null
+          created_at: string
+          id: string
+          is_mock: boolean
+          last_query_at: string | null
+          mac: string
+          merchant_request_id: string | null
+          mpesa_code: string | null
+          package: string
+          phone: string
+          result_desc: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          callback_token: string
+          checkout_request_id?: string | null
+          created_at?: string
+          id?: string
+          is_mock?: boolean
+          last_query_at?: string | null
+          mac: string
+          merchant_request_id?: string | null
+          mpesa_code?: string | null
+          package: string
+          phone: string
+          result_desc?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          callback_token?: string
+          checkout_request_id?: string | null
+          created_at?: string
+          id?: string
+          is_mock?: boolean
+          last_query_at?: string | null
+          mac?: string
+          merchant_request_id?: string | null
+          mpesa_code?: string | null
+          package?: string
+          phone?: string
+          result_desc?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      users: {
+        Row: {
+          created_at: string
+          expiry: string
+          id: string
+          mac: string
+          package: string
+          phone: string | null
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expiry: string
+          id?: string
+          mac: string
+          package: string
+          phone?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expiry?: string
+          id?: string
+          mac?: string
+          package?: string
+          phone?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      vouchers: {
+        Row: {
+          batch: string | null
+          code: string
+          created_at: string
+          id: string
+          package: string
+          used: boolean
+          used_at: string | null
+          used_by_mac: string | null
+        }
+        Insert: {
+          batch?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          package: string
+          used?: boolean
+          used_at?: string | null
+          used_by_mac?: string | null
+        }
+        Update: {
+          batch?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          package?: string
+          used?: boolean
+          used_at?: string | null
+          used_by_mac?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
