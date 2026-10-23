@@ -8,6 +8,13 @@
       "when": 1792685850979,
       "tag": "0000_brady_wifi_core",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792773348460,
+      "tag": "0001_admin_account_and_login_attempts",
+      "breakpoints": true
     }
   ]
 }
