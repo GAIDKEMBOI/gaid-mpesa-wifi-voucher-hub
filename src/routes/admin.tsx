@@ -2,21 +2,33 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { Ban, Copy, Download, Loader2, LogOut, Plus, Printer, RefreshCw, Users, Wallet, Wifi } from "lucide-react";
+import { Ban, Copy, Download, Eye, EyeOff, Loader2, LogOut, Plus, Printer, RefreshCw, ShieldCheck, Users, Wallet, Wifi } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PACKAGES, formatTimeLeft, getPackage, type PackageId } from "@/lib/wifi";
+import {
+  ADMIN_PASSWORD_MIN_LENGTH,
+  LOGIN_LOCK_MINUTES,
+  LOGIN_MAX_FAILS_PER_DEVICE,
+  PACKAGES,
+  adminPasswordProblem,
+  formatTimeLeft,
+  getPackage,
+  type PackageId,
+} from "@/lib/wifi";
 import {
   addUserManual,
   adminLogin,
   blockMac,
+  changeAdminPassword,
   disconnectUser,
   generateVouchers,
+  getAdminStatus,
   getDashboard,
   listTransactions,
   listVouchers,
+  setupAdmin,
   unblockMac,
 } from "@/lib/admin.functions";
 import { cn } from "@/lib/utils";
@@ -46,19 +58,17 @@ function AdminPage() {
     setReady(true);
   }, []);
 
+  const signIn = (t: string) => {
+    localStorage.setItem(TOKEN_KEY, t);
+    setToken(t);
+  };
+
   if (!ready) return <div className="min-h-dvh bg-background" />;
-  if (!token)
-    return (
-      <Login
-        onLogin={(t) => {
-          localStorage.setItem(TOKEN_KEY, t);
-          setToken(t);
-        }}
-      />
-    );
+  if (!token) return <AuthGate onLogin={signIn} />;
   return (
     <Dashboard
       token={token}
+      onToken={signIn}
       onLogout={() => {
         localStorage.removeItem(TOKEN_KEY);
         setToken(null);
@@ -67,8 +77,130 @@ function AdminPage() {
   );
 }
 
+function AuthShell({ subtitle, children, onSubmit }: { subtitle: string; children: React.ReactNode; onSubmit?: (e: React.FormEvent) => void }) {
+  return (
+    <main className="bg-hero flex min-h-dvh items-center justify-center px-4 py-8">
+      <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4 rounded-2xl border border-border bg-card p-6 shadow-card">
+        <div className="text-center">
+          <h1 className="font-display text-4xl">
+            GAID <span className="text-primary">WIFI</span> SERVICES
+          </h1>
+          <p className="text-sm text-muted-foreground">{subtitle}</p>
+        </div>
+        {children}
+      </form>
+    </main>
+  );
+}
+
+function PasswordInput({ value, onChange, placeholder, autoComplete }: { value: string; onChange: (v: string) => void; placeholder: string; autoComplete: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <Input
+        placeholder={placeholder}
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        autoComplete={autoComplete}
+        className="h-12 pr-12"
+      />
+      <button
+        type="button"
+        onClick={() => setShow((s) => !s)}
+        aria-label={show ? "Hide password" : "Show password"}
+        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-muted-foreground hover:text-foreground"
+      >
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
+
+function PasswordHint({ password, username }: { password: string; username?: string }) {
+  if (!password) return <p className="text-xs text-muted-foreground">At least {ADMIN_PASSWORD_MIN_LENGTH} characters, with letters and numbers.</p>;
+  const problem = adminPasswordProblem(password, username);
+  return (
+    <p className={cn("flex items-center gap-1 text-xs", problem ? "text-warning" : "text-success")}>
+      {problem ? problem : <><ShieldCheck className="h-3.5 w-3.5" /> Strong enough</>}
+    </p>
+  );
+}
+
+function AuthGate({ onLogin }: { onLogin: (t: string) => void }) {
+  const statusFn = useServerFn(getAdminStatus);
+  const status = useQuery({ queryKey: ["admin-status"], queryFn: () => statusFn() });
+
+  if (status.isLoading) return <div className="bg-hero min-h-dvh" />;
+  if (status.error)
+    return (
+      <AuthShell subtitle="Admin">
+        <p className="text-center text-sm text-destructive">Could not reach the server.</p>
+        <Button type="button" variant="outline" onClick={() => status.refetch()} className="w-full">
+          Try again
+        </Button>
+      </AuthShell>
+    );
+  if (!status.data?.setUp) return <Setup codeReady={Boolean(status.data?.setupCodeReady)} onLogin={onLogin} />;
+  return <Login onLogin={onLogin} />;
+}
+
+function Setup({ codeReady, onLogin }: { codeReady: boolean; onLogin: (t: string) => void }) {
+  const setupFn = useServerFn(setupAdmin);
+  const qc = useQueryClient();
+  const [setupCode, setSetupCode] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (password !== confirm) { toast.error("Passwords do not match"); return; }
+    setBusy(true);
+    try {
+      const r = await setupFn({ data: { setupCode, username, password } });
+      if (r.ok) {
+        toast.success("Admin account created");
+        onLogin(r.token);
+      } else {
+        toast.error(r.error);
+        if (/already exists/.test(r.error)) qc.invalidateQueries({ queryKey: ["admin-status"] });
+      }
+    } catch {
+      toast.error("Network problem");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!codeReady)
+    return (
+      <AuthShell subtitle="Create admin account">
+        <p className="text-sm text-muted-foreground">
+          To keep strangers out, a private setup code is needed before the first admin account can be created. Ask your developer to add the
+          setup code, then reload this page.
+        </p>
+      </AuthShell>
+    );
+
+  return (
+    <AuthShell subtitle="Create your admin account (one time)" onSubmit={submit}>
+      <Input placeholder="Setup code" value={setupCode} onChange={(e) => setSetupCode(e.target.value)} autoComplete="off" className="h-12" />
+      <Input placeholder="Choose a username" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" className="h-12" />
+      <PasswordInput placeholder="Choose a password" value={password} onChange={setPassword} autoComplete="new-password" />
+      <PasswordHint password={password} username={username.trim().toLowerCase()} />
+      <PasswordInput placeholder="Type password again" value={confirm} onChange={setConfirm} autoComplete="new-password" />
+      <Button type="submit" variant="hero" size="xl" disabled={busy || !setupCode || !username || !password || !confirm}>
+        {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : "CREATE ACCOUNT"}
+      </Button>
+    </AuthShell>
+  );
+}
+
 function Login({ onLogin }: { onLogin: (t: string) => void }) {
   const loginFn = useServerFn(adminLogin);
+  const qc = useQueryClient();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -79,7 +211,10 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
     try {
       const r = await loginFn({ data: { username, password } });
       if (r.ok) onLogin(r.token);
-      else toast.error(r.error);
+      else {
+        toast.error(r.error);
+        if ("needsSetup" in r && r.needsSetup) qc.invalidateQueries({ queryKey: ["admin-status"] });
+      }
     } catch {
       toast.error("Network problem");
     } finally {
@@ -88,28 +223,54 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   }
 
   return (
-    <main className="bg-hero flex min-h-dvh items-center justify-center px-4">
-      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-2xl border border-border bg-card p-6 shadow-card">
-        <div className="text-center">
-          <h1 className="font-display text-4xl">
-            GAID <span className="text-primary">WIFI</span> SERVICES
-          </h1>
-          <p className="text-sm text-muted-foreground">Admin login</p>
-        </div>
-        <Input placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" className="h-12" />
-        <Input
-          placeholder="Password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-          className="h-12"
-        />
-        <Button type="submit" variant="hero" size="xl" disabled={busy}>
-          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : "LOGIN"}
-        </Button>
-      </form>
-    </main>
+    <AuthShell subtitle="Admin login" onSubmit={submit}>
+      <Input placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" className="h-12" />
+      <PasswordInput placeholder="Password" value={password} onChange={setPassword} autoComplete="current-password" />
+      <Button type="submit" variant="hero" size="xl" disabled={busy || !username || !password}>
+        {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : "LOGIN"}
+      </Button>
+    </AuthShell>
+  );
+}
+
+function AccountPanel({ token, onToken, onLogout }: { token: string; onToken: (t: string) => void; onLogout: () => void }) {
+  const changeFn = useServerFn(changeAdminPassword);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (next !== confirm) { toast.error("New passwords do not match"); return; }
+    setBusy(true);
+    try {
+      const r = await changeFn({ data: { token, currentPassword: current, newPassword: next } });
+      if (!r.ok) { toast.error(r.error); return; }
+      onToken(r.token);
+      setCurrent(""); setNext(""); setConfirm("");
+      toast.success("Password changed. Other devices have been logged out.");
+    } catch (err) {
+      if (!handleAuthError(err, onLogout)) toast.error("Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="max-w-md space-y-3 rounded-2xl border border-border bg-card p-4">
+      <h2 className="font-semibold">Change admin password</h2>
+      <PasswordInput placeholder="Current password" value={current} onChange={setCurrent} autoComplete="current-password" />
+      <PasswordInput placeholder="New password" value={next} onChange={setNext} autoComplete="new-password" />
+      <PasswordHint password={next} />
+      <PasswordInput placeholder="Type new password again" value={confirm} onChange={setConfirm} autoComplete="new-password" />
+      <Button type="submit" disabled={busy || !current || !next || !confirm}>
+        {busy ? <Loader2 className="animate-spin" /> : <ShieldCheck />} Save new password
+      </Button>
+      <p className="text-xs text-muted-foreground">
+        After {LOGIN_MAX_FAILS_PER_DEVICE} wrong tries, login is paused for {LOGIN_LOCK_MINUTES} minutes. Sessions end after 12 hours.
+      </p>
+    </form>
   );
 }
 
