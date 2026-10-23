@@ -6,4 +6,5 @@
 - [x] Setup guide (/setup)
 - [x] Rename brand from BRADY WIFI to GAID WIFI SERVICES everywhere
 - [x] End-to-end test (test-mode payment, admin, vouchers)
+- [x] Secure admin login: one-time setup code, strong password, lockout, change password
 - [ ] Real M-Pesa keys (waiting on user: Consumer Key, Secret, Shortcode, Passkey)
