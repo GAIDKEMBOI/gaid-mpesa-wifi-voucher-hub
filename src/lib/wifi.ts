@@ -85,3 +85,49 @@ export function startOfKenyaDay(now: Date): Date {
   local.setUTCHours(0, 0, 0, 0);
   return new Date(local.getTime() - offset);
 }
+
+// ---------- Admin account rules ----------
+
+export const ADMIN_PASSWORD_MIN_LENGTH = 10;
+export const LOGIN_LOCK_MINUTES = 15;
+export const LOGIN_MAX_FAILS_PER_DEVICE = 5;
+export const LOGIN_MAX_FAILS_TOTAL = 50;
+
+const COMMON_PASSWORDS = [
+  "admin123",
+  "password",
+  "password1",
+  "password123",
+  "1234567890",
+  "12345678",
+  "123456789",
+  "qwerty123",
+  "qwertyuiop",
+  "admin12345",
+  "administrator",
+  "iloveyou",
+];
+
+/** Trimmed, lowercased username of 3-40 letters/numbers/._-, or null. */
+export function normalizeAdminUsername(input: string): string | null {
+  const u = input.trim().toLowerCase();
+  return /^[a-z0-9._-]{3,40}$/.test(u) ? u : null;
+}
+
+/** Returns a reason the admin password is too weak, or null when it is acceptable. */
+export function adminPasswordProblem(password: string, username = ""): string | null {
+  if (password.length < ADMIN_PASSWORD_MIN_LENGTH)
+    return `Use at least ${ADMIN_PASSWORD_MIN_LENGTH} characters`;
+  if (password.length > 200) return "Password is too long";
+  if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) return "Use both letters and numbers";
+  const lower = password.toLowerCase();
+  if (COMMON_PASSWORDS.includes(lower)) return "This password is too common";
+  if (username && lower.includes(username.toLowerCase())) return "Password must not contain the username";
+  if (/^(.)\1+$/.test(password)) return "Password is too simple";
+  return null;
+}
+
+/** Login is locked when one device or the whole system has too many recent failures. */
+export function isLoginLocked(failsFromDevice: number, failsTotal: number): boolean {
+  return failsFromDevice >= LOGIN_MAX_FAILS_PER_DEVICE || failsTotal >= LOGIN_MAX_FAILS_TOTAL;
+}

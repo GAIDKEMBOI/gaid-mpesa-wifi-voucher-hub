@@ -7,6 +7,9 @@ import {
   normalizeMac,
   normalizePhone,
   startOfKenyaDay,
+  adminPasswordProblem,
+  isLoginLocked,
+  normalizeAdminUsername,
 } from "@/lib/wifi";
 
 describe("packages", () => {
@@ -76,4 +79,27 @@ describe("today in Kenya", () => {
     expect(startOfKenyaDay(new Date("2026-03-10T02:00:00Z")).toISOString()).toBe(
       "2026-03-09T21:00:00.000Z",
     ));
+});
+
+describe("admin password", () => {
+  it("rejects the old default admin123", () =>
+    expect(adminPasswordProblem("admin123")).not.toBeNull());
+  it("rejects passwords shorter than 10 characters", () =>
+    expect(adminPasswordProblem("abc12345x")).toBe("Use at least 10 characters"));
+  it("needs letters and numbers", () =>
+    expect(adminPasswordProblem("onlyletterswow")).toBe("Use both letters and numbers"));
+  it("must not contain the username", () =>
+    expect(adminPasswordProblem("gaidboss2026x", "gaidboss")).toBe("Password must not contain the username"));
+  it("accepts a strong password", () => expect(adminPasswordProblem("Mawingu-7421-Kisumu")).toBeNull());
+});
+
+describe("admin username", () => {
+  it("is lowercased and trimmed", () => expect(normalizeAdminUsername("  Owner ")).toBe("owner"));
+  it("rejects spaces", () => expect(normalizeAdminUsername("my boss")).toBeNull());
+});
+
+describe("login lockout", () => {
+  it("allows 4 failures from one device", () => expect(isLoginLocked(4, 4)).toBe(false));
+  it("locks after 5 failures from one device", () => expect(isLoginLocked(5, 5)).toBe(true));
+  it("locks everyone after 50 failures in total", () => expect(isLoginLocked(0, 50)).toBe(true));
 });
