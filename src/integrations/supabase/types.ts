@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_account: {
+        Row: {
+          created_at: string
+          id: number
+          iterations: number
+          password_hash: string
+          password_salt: string
+          session_version: number
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          iterations: number
+          password_hash: string
+          password_salt: string
+          session_version?: number
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          iterations?: number
+          password_hash?: string
+          password_salt?: string
+          session_version?: number
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      admin_login_attempts: {
+        Row: {
+          created_at: string
+          id: string
+          ip: string
+          success: boolean
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ip: string
+          success?: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ip?: string
+          success?: boolean
+        }
+        Relationships: []
+      }
       blocked_macs: {
         Row: {
           created_at: string

@@ -1,21 +1,31 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
+  LOGIN_LOCK_MINUTES,
   MAX_VOUCHERS_PER_BATCH,
   PACKAGE_IDS,
+  adminPasswordProblem,
   makeVoucherCode,
+  normalizeAdminUsername,
   normalizeMac,
   normalizePhone,
   startOfKenyaDay,
 } from "@/lib/wifi";
 import {
   activateAccess,
-  adminCredentials,
+  clientIp,
   createAdminToken,
   db,
   disconnectMac,
+  getAdminAccount,
+  hashPassword,
+  loginLocked,
+  recordAttempt,
   requireAdmin,
+  setupCodeConfigured,
+  setupCodeMatches,
   sweepExpired,
+  verifyPassword,
 } from "@/lib/access.server";
 import { router, routerMode } from "@/lib/mikrotik.server";
 import { mpesaMode } from "@/lib/mpesa.server";
@@ -30,16 +40,84 @@ const mac = z
     return m ?? "";
   });
 
+const LOCKED_MSG = `Too many wrong tries. Wait ${LOGIN_LOCK_MINUTES} minutes and try again.`;
+
+export const getAdminStatus = createServerFn({ method: "POST" }).handler(async () => {
+  const account = await getAdminAccount();
+  return { setUp: Boolean(account), setupCodeReady: setupCodeConfigured() };
+});
+
+export const setupAdmin = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z
+      .object({ setupCode: z.string().max(200), username: z.string().max(60), password: z.string().max(200) })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const ip = clientIp();
+    if (await loginLocked(ip)) return { ok: false as const, error: LOCKED_MSG };
+    if (await getAdminAccount()) return { ok: false as const, error: "Admin account already exists. Please log in." };
+    if (!setupCodeConfigured()) return { ok: false as const, error: "Setup code has not been added yet" };
+    if (!(await setupCodeMatches(data.setupCode))) {
+      await recordAttempt(ip, false);
+      return { ok: false as const, error: "Wrong setup code" };
+    }
+    const username = normalizeAdminUsername(data.username);
+    if (!username) return { ok: false as const, error: "Username: 3-40 letters or numbers, no spaces" };
+    const problem = adminPasswordProblem(data.password, username);
+    if (problem) return { ok: false as const, error: problem };
+
+    const { error } = await db.from("admin_account").insert({ id: 1, username, ...(await hashPassword(data.password)) });
+    if (error) return { ok: false as const, error: "Admin account already exists. Please log in." };
+    await recordAttempt(ip, true);
+    return { ok: true as const, token: await createAdminToken(1) };
+  });
+
 export const adminLogin = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({ username: z.string().max(100), password: z.string().max(200) }).parse(d),
   )
   .handler(async ({ data }) => {
-    const c = adminCredentials();
-    if (data.username.trim() !== c.username || data.password !== c.password) {
+    const ip = clientIp();
+    if (await loginLocked(ip)) return { ok: false as const, error: LOCKED_MSG };
+    const account = await getAdminAccount();
+    if (!account) return { ok: false as const, error: "Admin account is not set up yet", needsSetup: true };
+    const userOk = safeUser(data.username) === account.username;
+    const passOk = await verifyPassword(account, data.password);
+    if (!userOk || !passOk) {
+      await recordAttempt(ip, false);
       return { ok: false as const, error: "Wrong username or password" };
     }
-    return { ok: true as const, token: await createAdminToken() };
+    await recordAttempt(ip, true);
+    return { ok: true as const, token: await createAdminToken(account.session_version) };
+  });
+
+function safeUser(u: string) {
+  return u.trim().toLowerCase();
+}
+
+export const changeAdminPassword = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({ token, currentPassword: z.string().max(200), newPassword: z.string().max(200) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const account = await requireAdmin(data.token);
+    const ip = clientIp();
+    if (await loginLocked(ip)) return { ok: false as const, error: LOCKED_MSG };
+    if (!(await verifyPassword(account, data.currentPassword))) {
+      await recordAttempt(ip, false);
+      return { ok: false as const, error: "Current password is wrong" };
+    }
+    const problem = adminPasswordProblem(data.newPassword, account.username);
+    if (problem) return { ok: false as const, error: problem };
+    if (data.newPassword === data.currentPassword)
+      return { ok: false as const, error: "New password must be different" };
+    const version = account.session_version + 1;
+    await db
+      .from("admin_account")
+      .update({ ...(await hashPassword(data.newPassword)), session_version: version, updated_at: new Date().toISOString() })
+      .eq("id", 1);
+    return { ok: true as const, token: await createAdminToken(version) };
   });
 
 export const getDashboard = createServerFn({ method: "POST" })
