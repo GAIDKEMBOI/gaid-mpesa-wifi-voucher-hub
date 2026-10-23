@@ -1,5 +1,6 @@
+import { getRequestHeader, getRequestIP } from "@tanstack/react-start/server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { computeExpiry, getPackage } from "@/lib/wifi";
+import { LOGIN_LOCK_MINUTES, computeExpiry, getPackage, isLoginLocked } from "@/lib/wifi";
 import { router } from "@/lib/mikrotik.server";
 
 export const db = supabaseAdmin;
@@ -109,14 +110,34 @@ export async function finalizeFailure(txnId: string, status: "failed" | "cancell
     .eq("status", "pending");
 }
 
-// ---------- Admin session (signed token, no database user needed) ----------
+// ---------- Admin account (hashed password in DB) + signed session token ----------
 
 const enc = new TextEncoder();
+// Worker runtime caps PBKDF2 at 100k iterations.
+const PBKDF2_ITERATIONS = 100_000;
+const SESSION_MS = 12 * 3600_000;
 
 function b64url(bytes: Uint8Array): string {
   let s = "";
   bytes.forEach((b) => (s += String.fromCharCode(b)));
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromB64url(s: string): Uint8Array {
+  const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+}
+
+/** Constant-time string comparison. */
+export function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function sha256(text: string): Promise<string> {
+  return b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(text))));
 }
 
 async function hmac(data: string): Promise<string> {
@@ -128,22 +149,116 @@ async function hmac(data: string): Promise<string> {
   return b64url(new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(data))));
 }
 
-export function adminCredentials() {
+async function derive(password: string, salt: Uint8Array, iterations: number): Promise<string> {
+  const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, key, 256);
+  return b64url(new Uint8Array(bits));
+}
+
+export async function hashPassword(password: string) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
   return {
-    username: process.env["ADMIN_USERNAME"] || "admin",
-    password: process.env["ADMIN_PASSWORD"] || "admin123",
+    password_hash: await derive(password, salt, PBKDF2_ITERATIONS),
+    password_salt: b64url(salt),
+    iterations: PBKDF2_ITERATIONS,
   };
 }
 
-export async function createAdminToken(): Promise<string> {
-  const payload = b64url(enc.encode(JSON.stringify({ exp: Date.now() + 12 * 3600_000 })));
+type AdminAccount = {
+  username: string;
+  password_hash: string;
+  password_salt: string;
+  iterations: number;
+  session_version: number;
+};
+
+export async function getAdminAccount(): Promise<AdminAccount | null> {
+  const { data } = await db
+    .from("admin_account")
+    .select("username, password_hash, password_salt, iterations, session_version")
+    .eq("id", 1)
+    .maybeSingle();
+  return data;
+}
+
+const DUMMY_SALT = new Uint8Array(16);
+
+/** Checks a password against the stored hash; always does the same work to avoid timing leaks. */
+export async function verifyPassword(account: AdminAccount | null, password: string): Promise<boolean> {
+  if (!account) {
+    await derive(password, DUMMY_SALT, PBKDF2_ITERATIONS);
+    return false;
+  }
+  const hash = await derive(password, fromB64url(account.password_salt), account.iterations);
+  return safeEqual(hash, account.password_hash);
+}
+
+export async function setupCodeMatches(code: string): Promise<boolean> {
+  const expected = process.env["ADMIN_SETUP_CODE"];
+  if (!expected) return false;
+  return safeEqual(await sha256(code.trim()), await sha256(expected.trim()));
+}
+
+export function setupCodeConfigured(): boolean {
+  return Boolean(process.env["ADMIN_SETUP_CODE"]);
+}
+
+// ---------- Login lockout ----------
+
+export function clientIp(): string {
+  return getRequestHeader("cf-connecting-ip") || getRequestIP({ xForwardedFor: true }) || "unknown";
+}
+
+export async function loginLocked(ip: string): Promise<boolean> {
+  const since = new Date(Date.now() - LOGIN_LOCK_MINUTES * 60_000).toISOString();
+  const [mine, all] = await Promise.all([
+    db
+      .from("admin_login_attempts")
+      .select("id", { count: "exact", head: true })
+      .eq("ip", ip)
+      .eq("success", false)
+      .gte("created_at", since),
+    db
+      .from("admin_login_attempts")
+      .select("id", { count: "exact", head: true })
+      .eq("success", false)
+      .gte("created_at", since),
+  ]);
+  return isLoginLocked(mine.count ?? 0, all.count ?? 0);
+}
+
+export async function recordAttempt(ip: string, success: boolean) {
+  await db.from("admin_login_attempts").insert({ ip, success });
+  if (success) {
+    // A successful login clears that device's failures.
+    await db.from("admin_login_attempts").delete().eq("ip", ip).eq("success", false);
+  }
+  await db
+    .from("admin_login_attempts")
+    .delete()
+    .lt("created_at", new Date(Date.now() - 86400_000).toISOString());
+}
+
+// ---------- Session token ----------
+
+export async function createAdminToken(sessionVersion: number): Promise<string> {
+  const payload = b64url(enc.encode(JSON.stringify({ exp: Date.now() + SESSION_MS, v: sessionVersion })));
   return `${payload}.${await hmac(payload)}`;
 }
 
+/** Valid signature, not expired, and issued for the current password (changing it logs out old sessions). */
 export async function requireAdmin(token: string | undefined) {
   if (!token) throw new Error("Please log in again");
   const [payload, sig] = token.split(".");
-  if (!payload || !sig || (await hmac(payload)) !== sig) throw new Error("Please log in again");
-  const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))) as { exp: number };
+  if (!payload || !sig || !safeEqual(await hmac(payload), sig)) throw new Error("Please log in again");
+  let json: { exp: number; v?: number };
+  try {
+    json = JSON.parse(new TextDecoder().decode(fromB64url(payload)));
+  } catch {
+    throw new Error("Please log in again");
+  }
   if (json.exp < Date.now()) throw new Error("Session expired. Please log in again");
+  const account = await getAdminAccount();
+  if (!account || json.v !== account.session_version) throw new Error("Please log in again");
+  return account;
 }
