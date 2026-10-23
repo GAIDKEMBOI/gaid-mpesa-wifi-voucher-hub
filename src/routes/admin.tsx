@@ -293,7 +293,7 @@ function handleAuthError(err: unknown, onLogout: () => void) {
   return false;
 }
 
-function Dashboard({ token, onLogout }: { token: string; onLogout: () => void }) {
+function Dashboard({ token, onToken, onLogout }: { token: string; onToken: (t: string) => void; onLogout: () => void }) {
   const qc = useQueryClient();
   const dashFn = useServerFn(getDashboard);
   const txFn = useServerFn(listTransactions);
@@ -375,6 +375,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
             <TabsTrigger value="vouchers">Vouchers</TabsTrigger>
             <TabsTrigger value="mpesa">M-Pesa</TabsTrigger>
             <TabsTrigger value="blocked">Blocked</TabsTrigger>
+            <TabsTrigger value="account">Account</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users">
@@ -477,6 +478,10 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
               onBlock={(mac, reason) => act(blockFn({ data: { token, mac, reason } }), "Device blocked")}
               onUnblock={(mac) => act(unblockFn({ data: { token, mac } }), "Device unblocked")}
             />
+          </TabsContent>
+
+          <TabsContent value="account">
+            <AccountPanel token={token} onToken={onToken} onLogout={onLogout} />
           </TabsContent>
         </Tabs>
       </div>
