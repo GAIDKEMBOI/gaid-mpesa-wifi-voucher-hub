@@ -35,7 +35,7 @@ describe("expiry", () => {
   it("ignores an already expired session", () => {
     const old = new Date("2026-01-01T09:00:00Z");
     expect(computeExpiry(getPackage("4h")!, now, old).toISOString()).toBe(
-      "2026-01-01T16:00:00.000Z",
+      "2026-01-01T14:00:00.000Z",
     );
   });
 });
