@@ -13,18 +13,12 @@ import {
 } from "@/lib/wifi";
 
 describe("packages", () => {
-  it("1 Hour costs 20 KES", () => {
-    expect(getPackage("1h")).toMatchObject({ price: 20, minutes: 60 });
-  });
-  it("6 Hours costs 50 KES", () => {
-    expect(getPackage("6h")).toMatchObject({ price: 50, minutes: 360 });
-  });
-  it("24 Hours costs 100 KES", () => {
-    expect(getPackage("24h")).toMatchObject({ price: 100, minutes: 1440 });
-  });
-  it("7 Days costs 500 KES", () => {
-    expect(getPackage("7d")).toMatchObject({ price: 500, minutes: 10080 });
-  });
+  const cases: [string, number, number][] = [
+    ["30m", 5, 30], ["1h", 10, 60], ["2h", 12, 120], ["4h", 20, 240],
+    ["12h", 30, 720], ["24h", 45, 1440], ["7d", 200, 10080], ["30d", 600, 43200],
+  ];
+  for (const [id, price, minutes] of cases)
+    it(`${id} costs ${price} KES`, () => expect(getPackage(id)).toMatchObject({ price, minutes }));
 });
 
 describe("expiry", () => {
@@ -40,7 +34,7 @@ describe("expiry", () => {
   });
   it("ignores an already expired session", () => {
     const old = new Date("2026-01-01T09:00:00Z");
-    expect(computeExpiry(getPackage("6h")!, now, old).toISOString()).toBe(
+    expect(computeExpiry(getPackage("4h")!, now, old).toISOString()).toBe(
       "2026-01-01T16:00:00.000Z",
     );
   });

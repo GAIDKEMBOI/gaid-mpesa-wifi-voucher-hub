@@ -32,10 +32,10 @@ export const Route = createFileRoute("/")({
       { title: "Sign in to GAID WIFI SERVICES — Fast & Affordable" },
       {
         name: "description",
-        content: "Get online with GAID WIFI SERVICES. 1 hour from KES 20. Pay instantly with Lipa na M-Pesa.",
+        content: "Get online with GAID WIFI SERVICES. 30 minutes from KES 5. Pay instantly with Lipa na M-Pesa.",
       },
       { property: "og:title", content: "GAID WIFI SERVICES — Fast & Affordable" },
-      { property: "og:description", content: "1 Hour KES 20 · 6 Hours KES 50 · 24 Hours KES 100 · 7 Days KES 500" },
+      { property: "og:description", content: "30 Mins KES 5 · 1 Hour KES 10 · 24 Hours KES 45 · 1 Month KES 600" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
