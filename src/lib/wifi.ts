@@ -1,6 +1,6 @@
 // Shared, browser-safe business rules for GAID WIFI SERVICES.
 
-export type PackageId = "1h" | "6h" | "24h" | "7d";
+export type PackageId = "30m" | "1h" | "2h" | "4h" | "12h" | "24h" | "7d" | "30d";
 
 export interface WifiPackage {
   id: PackageId;
@@ -10,10 +10,14 @@ export interface WifiPackage {
 }
 
 export const PACKAGES: WifiPackage[] = [
-  { id: "1h", label: "1 Hour", price: 20, minutes: 60 },
-  { id: "6h", label: "6 Hours", price: 50, minutes: 6 * 60 },
-  { id: "24h", label: "24 Hours", price: 100, minutes: 24 * 60 },
-  { id: "7d", label: "7 Days", price: 500, minutes: 7 * 24 * 60 },
+  { id: "30m", label: "30 Mins", price: 5, minutes: 30 },
+  { id: "1h", label: "1 Hour", price: 10, minutes: 60 },
+  { id: "2h", label: "2 Hours", price: 12, minutes: 2 * 60 },
+  { id: "4h", label: "4 Hours", price: 20, minutes: 4 * 60 },
+  { id: "12h", label: "12 Hours", price: 30, minutes: 12 * 60 },
+  { id: "24h", label: "24 Hours", price: 45, minutes: 24 * 60 },
+  { id: "7d", label: "1 Week", price: 200, minutes: 7 * 24 * 60 },
+  { id: "30d", label: "1 Month", price: 600, minutes: 30 * 24 * 60 },
 ];
 
 export const PACKAGE_IDS = PACKAGES.map((p) => p.id) as [PackageId, ...PackageId[]];
