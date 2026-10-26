@@ -10,6 +10,9 @@ import {
   adminPasswordProblem,
   isLoginLocked,
   normalizeAdminUsername,
+  PAYMENT_TIMEOUT_MS,
+  paymentAccess,
+  paymentState,
 } from "@/lib/wifi";
 
 describe("packages", () => {
@@ -96,4 +99,35 @@ describe("login lockout", () => {
   it("allows 4 failures from one device", () => expect(isLoginLocked(4, 4)).toBe(false));
   it("locks after 5 failures from one device", () => expect(isLoginLocked(5, 5)).toBe(true));
   it("locks everyone after 50 failures in total", () => expect(isLoginLocked(0, 50)).toBe(true));
+});
+
+describe("payment status panel rules", () => {
+  it("cancelled payments show as failed", () => {
+    expect(paymentState("cancelled")).toBe("failed");
+    expect(paymentState("failed")).toBe("failed");
+    expect(paymentState("pending")).toBe("pending");
+    expect(paymentState("success")).toBe("success");
+  });
+  it("pending payments time out after 3 minutes", () => {
+    expect(PAYMENT_TIMEOUT_MS).toBe(180_000);
+  });
+  const now = new Date("2026-10-26T09:00:00Z");
+  const later = new Date("2026-10-26T10:00:00Z");
+  const earlier = new Date("2026-10-26T08:00:00Z");
+  it("pending payment means internet is not on yet", () => {
+    expect(paymentAccess("pending", null, now, false)).toBe("waiting");
+  });
+  it("failed payment never turns internet on", () => {
+    expect(paymentAccess("failed", later, now, true)).toBe("none");
+  });
+  it("successful payment with time left means internet is on", () => {
+    expect(paymentAccess("success", later, now, true)).toBe("on");
+  });
+  it("successful payment whose time ran out or was disconnected has ended", () => {
+    expect(paymentAccess("success", earlier, now, true)).toBe("ended");
+    expect(paymentAccess("success", later, now, false)).toBe("ended");
+  });
+  it("successful payment with no access granted is flagged", () => {
+    expect(paymentAccess("success", null, now, false)).toBe("not_activated");
+  });
 });
