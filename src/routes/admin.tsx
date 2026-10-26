@@ -349,7 +349,7 @@ function Dashboard({ token, onToken, onLogout }: { token: string; onToken: (t: s
                   ? `Test mode (missing: ${d.mpesaMissing.map((k) => k.replace("MPESA_", "")).join(", ")})`
                   : d.mpesaMode === "live"
                     ? `Live${d.mpesaTill ? ` · Till ${d.mpesaTill}` : ""}`
-                    : "Sandbox"
+                    : "Daraja Sandbox (test)"
               }
               warn={d.mpesaMode !== "live"}
             />
