@@ -2,15 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { PACKAGE_IDS, getPackage, normalizeMac, normalizePhone, normalizeVoucher } from "@/lib/wifi";
-import {
-  activateAccess,
-  db,
-  finalizeFailure,
-  finalizeSuccess,
-  getActiveSession,
-  isBlocked,
-} from "@/lib/access.server";
-import { getMpesaConfig, mpesaMode, stkPush, stkQuery } from "@/lib/mpesa.server";
+import { activateAccess, db, finalizeFailure, getActiveSession, isBlocked } from "@/lib/access.server";
+import { getMpesaConfig, mpesaMode, stkPush } from "@/lib/mpesa.server";
+import { refreshPendingTransaction } from "@/lib/payments.server";
 
 const macSchema = z
   .string()
@@ -99,28 +93,7 @@ export const checkPayment = createServerFn({ method: "POST" })
     const { data: txn } = await db.from("transactions").select("*").eq("id", data.transactionId).maybeSingle();
     if (!txn) return { status: "failed" as const, message: "Payment not found", expiry: null };
 
-    if (txn.status === "pending") {
-      const age = Date.now() - new Date(txn.created_at).getTime();
-      if (txn.is_mock && age > 6000) {
-        // Mock: auto-approve after a short "enter PIN" delay
-        const code = `SIM${Math.random().toString(36).slice(2, 9).toUpperCase()}`;
-        await finalizeSuccess(txn.id, code);
-      } else if (!txn.is_mock && txn.checkout_request_id) {
-        const cfg = getMpesaConfig();
-        const lastQuery = txn.last_query_at ? new Date(txn.last_query_at).getTime() : 0;
-        if (cfg && age > 15000 && Date.now() - lastQuery > 10000) {
-          await db.from("transactions").update({ last_query_at: new Date().toISOString() }).eq("id", txn.id);
-          try {
-            const r = await stkQuery(cfg, txn.checkout_request_id);
-            if (r.state === "success") await finalizeSuccess(txn.id, null);
-            else if (r.state !== "pending") await finalizeFailure(txn.id, r.state, r.desc);
-          } catch (e) {
-            console.error("stk query", e);
-          }
-        }
-      }
-      if (age > 3 * 60_000) await finalizeFailure(txn.id, "failed", "Payment timed out. Try again.");
-    }
+    await refreshPendingTransaction(txn);
 
     const { data: fresh } = await db
       .from("transactions")
