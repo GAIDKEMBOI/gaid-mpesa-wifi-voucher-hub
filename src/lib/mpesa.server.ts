@@ -31,7 +31,8 @@ export function getMpesaConfig(): MpesaConfig | null {
     consumerSecret,
     shortcode,
     passkey,
-    tillNumber: env("MPESA_TILL_NUMBER"),
+    // The Till only exists on live M-Pesa; sandbox uses the Daraja test Paybill.
+    tillNumber: live ? env("MPESA_TILL_NUMBER") : undefined,
     baseUrl: live ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke",
   };
 }
