@@ -10,6 +10,9 @@ import {
   adminPasswordProblem,
   isLoginLocked,
   normalizeAdminUsername,
+  PAYMENT_TIMEOUT_MS,
+  paymentAccess,
+  paymentState,
 } from "@/lib/wifi";
 
 describe("packages", () => {
@@ -97,8 +100,6 @@ describe("login lockout", () => {
   it("locks after 5 failures from one device", () => expect(isLoginLocked(5, 5)).toBe(true));
   it("locks everyone after 50 failures in total", () => expect(isLoginLocked(0, 50)).toBe(true));
 });
-
-import { PAYMENT_TIMEOUT_MS, paymentAccess, paymentState } from "@/lib/wifi";
 
 describe("payment status panel rules", () => {
   it("cancelled payments show as failed", () => {
