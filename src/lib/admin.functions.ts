@@ -26,7 +26,7 @@ import {
   verifyPassword,
 } from "@/lib/access.server";
 import { router, routerMode } from "@/lib/mikrotik.server";
-import { mpesaMode } from "@/lib/mpesa.server";
+import { mpesaMissingKeys, mpesaMode } from "@/lib/mpesa.server";
 
 const token = z.string().max(500);
 const mac = z
@@ -135,6 +135,8 @@ export const getDashboard = createServerFn({ method: "POST" })
       sessions: sessions.data ?? [],
       blocked: blocked.data ?? [],
       mpesaMode: mpesaMode(),
+      mpesaMissing: mpesaMissingKeys(),
+      mpesaTill: process.env["MPESA_TILL_NUMBER"]?.trim() || null,
       routerMode: routerMode(),
     };
   });

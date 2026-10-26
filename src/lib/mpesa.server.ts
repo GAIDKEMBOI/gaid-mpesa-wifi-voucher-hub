@@ -10,21 +10,35 @@ export interface MpesaConfig {
   baseUrl: string;
 }
 
+const REQUIRED_KEYS = ["MPESA_CONSUMER_KEY", "MPESA_CONSUMER_SECRET", "MPESA_SHORTCODE", "MPESA_PASSKEY"] as const;
+
+// Pasted values often carry stray spaces or line breaks; strip them.
+function env(name: string): string | undefined {
+  const v = process.env[name]?.trim();
+  return v ? v : undefined;
+}
+
 export function getMpesaConfig(): MpesaConfig | null {
-  const consumerKey = process.env["MPESA_CONSUMER_KEY"];
-  const consumerSecret = process.env["MPESA_CONSUMER_SECRET"];
-  const shortcode = process.env["MPESA_SHORTCODE"];
-  const passkey = process.env["MPESA_PASSKEY"];
+  const consumerKey = env("MPESA_CONSUMER_KEY");
+  const consumerSecret = env("MPESA_CONSUMER_SECRET");
+  const shortcode = env("MPESA_SHORTCODE");
+  const passkey = env("MPESA_PASSKEY");
   if (!consumerKey || !consumerSecret || !shortcode || !passkey) return null;
-  const env = (process.env["MPESA_ENV"] ?? "sandbox").toLowerCase();
+  const mode = (env("MPESA_ENV") ?? "sandbox").toLowerCase();
+  const live = mode === "production" || mode === "live";
   return {
     consumerKey,
     consumerSecret,
     shortcode,
     passkey,
-    tillNumber: process.env["MPESA_TILL_NUMBER"] || undefined,
-    baseUrl: env === "production" ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke",
+    tillNumber: env("MPESA_TILL_NUMBER"),
+    baseUrl: live ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke",
   };
+}
+
+/** Names of required M-Pesa settings that are missing (never values). */
+export function mpesaMissingKeys(): string[] {
+  return REQUIRED_KEYS.filter((k) => !env(k));
 }
 
 export function mpesaMode(): "live" | "sandbox" | "mock" {

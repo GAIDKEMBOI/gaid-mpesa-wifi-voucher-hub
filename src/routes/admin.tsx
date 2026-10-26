@@ -342,7 +342,17 @@ function Dashboard({ token, onToken, onLogout }: { token: string; onToken: (t: s
       <div className="mx-auto max-w-6xl space-y-5 px-4 py-5">
         {d && (
           <div className="flex flex-wrap gap-2 text-xs">
-            <ModeBadge label="M-Pesa" value={d.mpesaMode === "mock" ? "Test mode (no keys)" : d.mpesaMode} warn={d.mpesaMode === "mock"} />
+            <ModeBadge
+              label="M-Pesa"
+              value={
+                d.mpesaMode === "mock"
+                  ? `Test mode (missing: ${d.mpesaMissing.map((k) => k.replace("MPESA_", "")).join(", ")})`
+                  : d.mpesaMode === "live"
+                    ? `Live${d.mpesaTill ? ` · Till ${d.mpesaTill}` : ""}`
+                    : "Sandbox"
+              }
+              warn={d.mpesaMode !== "live"}
+            />
             <ModeBadge label="Router" value={d.routerMode === "simulated" ? "Simulated" : "MikroTik"} warn={d.routerMode === "simulated"} />
             <Link to="/setup" className="rounded-full border border-border px-3 py-1 text-primary hover:bg-accent">
               Setup guide →
