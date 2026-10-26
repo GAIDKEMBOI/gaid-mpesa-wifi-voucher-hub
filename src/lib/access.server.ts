@@ -136,10 +136,6 @@ export function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-async function sha256(text: string): Promise<string> {
-  return b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(text))));
-}
-
 async function hmac(data: string): Promise<string> {
   const secret = process.env["ADMIN_SESSION_SECRET"];
   if (!secret) throw new Error("Server configuration error");
@@ -191,16 +187,6 @@ export async function verifyPassword(account: AdminAccount | null, password: str
   }
   const hash = await derive(password, fromB64url(account.password_salt), account.iterations);
   return safeEqual(hash, account.password_hash);
-}
-
-export async function setupCodeMatches(code: string): Promise<boolean> {
-  const expected = process.env["ADMIN_SETUP_CODE"];
-  if (!expected) return false;
-  return safeEqual(await sha256(code.trim()), await sha256(expected.trim()));
-}
-
-export function setupCodeConfigured(): boolean {
-  return Boolean(process.env["ADMIN_SETUP_CODE"]);
 }
 
 // ---------- Login lockout ----------
