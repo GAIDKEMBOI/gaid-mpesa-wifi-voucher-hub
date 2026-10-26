@@ -135,3 +135,30 @@ export function adminPasswordProblem(password: string, username = ""): string | 
 export function isLoginLocked(failsFromDevice: number, failsTotal: number): boolean {
   return failsFromDevice >= LOGIN_MAX_FAILS_PER_DEVICE || failsTotal >= LOGIN_MAX_FAILS_TOTAL;
 }
+
+// ---------- Payment (STK push) status rules ----------
+
+/** A payment still pending after this long is treated as failed (customer never entered the PIN). */
+export const PAYMENT_TIMEOUT_MS = 3 * 60_000;
+
+export type PaymentState = "pending" | "success" | "failed";
+export type AccessState = "waiting" | "on" | "ended" | "not_activated" | "none";
+
+/** Collapses stored payment statuses into the three states shown to the admin. */
+export function paymentState(status: string): PaymentState {
+  if (status === "success") return "success";
+  if (status === "pending") return "pending";
+  return "failed";
+}
+
+/**
+ * What a payment did for the customer's internet.
+ * accessUntil = latest expiry granted to that device at/after payment (null if no access was granted).
+ */
+export function paymentAccess(status: string, accessUntil: Date | null, now: Date, stillActive: boolean): AccessState {
+  const s = paymentState(status);
+  if (s === "pending") return "waiting";
+  if (s === "failed") return "none";
+  if (!accessUntil) return "not_activated";
+  return stillActive && accessUntil.getTime() > now.getTime() ? "on" : "ended";
+}
