@@ -22,8 +22,6 @@ import {
   loginLocked,
   recordAttempt,
   requireAdmin,
-  setupCodeConfigured,
-  setupCodeMatches,
   sweepExpired,
   verifyPassword,
 } from "@/lib/access.server";
@@ -44,24 +42,18 @@ const LOCKED_MSG = `Too many wrong tries. Wait ${LOGIN_LOCK_MINUTES} minutes and
 
 export const getAdminStatus = createServerFn({ method: "POST" }).handler(async () => {
   const account = await getAdminAccount();
-  return { setUp: Boolean(account), setupCodeReady: setupCodeConfigured() };
+  return { setUp: Boolean(account) };
 });
 
+/** First-run setup: whoever opens /admin first creates the only admin account; closed once it exists. */
 export const setupAdmin = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
-    z
-      .object({ setupCode: z.string().max(200), username: z.string().max(60), password: z.string().max(200) })
-      .parse(d),
+    z.object({ username: z.string().max(60), password: z.string().max(200) }).parse(d),
   )
   .handler(async ({ data }) => {
     const ip = clientIp();
     if (await loginLocked(ip)) return { ok: false as const, error: LOCKED_MSG };
     if (await getAdminAccount()) return { ok: false as const, error: "Admin account already exists. Please log in." };
-    if (!setupCodeConfigured()) return { ok: false as const, error: "Setup code has not been added yet" };
-    if (!(await setupCodeMatches(data.setupCode))) {
-      await recordAttempt(ip, false);
-      return { ok: false as const, error: "Wrong setup code" };
-    }
     const username = normalizeAdminUsername(data.username);
     if (!username) return { ok: false as const, error: "Username: 3-40 letters or numbers, no spaces" };
     const problem = adminPasswordProblem(data.password, username);

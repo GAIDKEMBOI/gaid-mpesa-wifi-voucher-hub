@@ -141,15 +141,14 @@ function AuthGate({ onLogin }: { onLogin: (t: string) => void }) {
         </Button>
       </AuthShell>
     );
-  if (!status.data?.setUp) return <Setup codeReady={Boolean(status.data?.setupCodeReady)} onLogin={onLogin} />;
+  if (!status.data?.setUp) return <Setup onLogin={onLogin} />;
   return <Login onLogin={onLogin} />;
 }
 
-function Setup({ codeReady, onLogin }: { codeReady: boolean; onLogin: (t: string) => void }) {
+function Setup({ onLogin }: { onLogin: (t: string) => void }) {
   const setupFn = useServerFn(setupAdmin);
   const qc = useQueryClient();
-  const [setupCode, setSetupCode] = useState("");
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState("GAID");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
@@ -159,7 +158,7 @@ function Setup({ codeReady, onLogin }: { codeReady: boolean; onLogin: (t: string
     if (password !== confirm) { toast.error("Passwords do not match"); return; }
     setBusy(true);
     try {
-      const r = await setupFn({ data: { setupCode, username, password } });
+      const r = await setupFn({ data: { username, password } });
       if (r.ok) {
         toast.success("Admin account created");
         onLogin(r.token);
@@ -174,24 +173,13 @@ function Setup({ codeReady, onLogin }: { codeReady: boolean; onLogin: (t: string
     }
   }
 
-  if (!codeReady)
-    return (
-      <AuthShell subtitle="Create admin account">
-        <p className="text-sm text-muted-foreground">
-          To keep strangers out, a private setup code is needed before the first admin account can be created. Ask your developer to add the
-          setup code, then reload this page.
-        </p>
-      </AuthShell>
-    );
-
   return (
     <AuthShell subtitle="Create your admin account (one time)" onSubmit={submit}>
-      <Input placeholder="Setup code" value={setupCode} onChange={(e) => setSetupCode(e.target.value)} autoComplete="off" className="h-12" />
-      <Input placeholder="Choose a username" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" className="h-12" />
+      <Input placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" className="h-12" />
       <PasswordInput placeholder="Choose a password" value={password} onChange={setPassword} autoComplete="new-password" />
       <PasswordHint password={password} username={username.trim().toLowerCase()} />
       <PasswordInput placeholder="Type password again" value={confirm} onChange={setConfirm} autoComplete="new-password" />
-      <Button type="submit" variant="hero" size="xl" disabled={busy || !setupCode || !username || !password || !confirm}>
+      <Button type="submit" variant="hero" size="xl" disabled={busy || !username || !password || !confirm}>
         {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : "CREATE ACCOUNT"}
       </Button>
     </AuthShell>
