@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SetupRouteImport } from './routes/setup'
+import { Route as ApiAddCreditRouteImport } from './routes/api/add-credit'
+import { Route as ApiBuyPackageRouteImport } from './routes/api/buy-package'
 import { Route as ApiPublicJobsExpireUsersRouteImport } from './routes/api/public/jobs/expire-users'
 import { Route as ApiPublicMpesaCallbackRouteImport } from './routes/api/public/mpesa/callback'
 
@@ -30,6 +32,16 @@ const SetupRoute = SetupRouteImport.update({
   path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAddCreditRoute = ApiAddCreditRouteImport.update({
+  id: '/api/add-credit',
+  path: '/api/add-credit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBuyPackageRoute = ApiBuyPackageRouteImport.update({
+  id: '/api/buy-package',
+  path: '/api/buy-package',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicJobsExpireUsersRoute =
   ApiPublicJobsExpireUsersRouteImport.update({
     id: '/api/public/jobs/expire-users',
@@ -46,6 +58,8 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/setup': typeof SetupRoute
+  '/api/add-credit': typeof ApiAddCreditRoute
+  '/api/buy-package': typeof ApiBuyPackageRoute
   '/api/public/jobs/expire-users': typeof ApiPublicJobsExpireUsersRoute
   '/api/public/mpesa/callback': typeof ApiPublicMpesaCallbackRoute
 }
@@ -53,6 +67,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/setup': typeof SetupRoute
+  '/api/add-credit': typeof ApiAddCreditRoute
+  '/api/buy-package': typeof ApiBuyPackageRoute
   '/api/public/jobs/expire-users': typeof ApiPublicJobsExpireUsersRoute
   '/api/public/mpesa/callback': typeof ApiPublicMpesaCallbackRoute
 }
@@ -61,6 +77,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/setup': typeof SetupRoute
+  '/api/add-credit': typeof ApiAddCreditRoute
+  '/api/buy-package': typeof ApiBuyPackageRoute
   '/api/public/jobs/expire-users': typeof ApiPublicJobsExpireUsersRoute
   '/api/public/mpesa/callback': typeof ApiPublicMpesaCallbackRoute
 }
@@ -70,6 +88,8 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/setup'
+    | '/api/add-credit'
+    | '/api/buy-package'
     | '/api/public/jobs/expire-users'
     | '/api/public/mpesa/callback'
   fileRoutesByTo: FileRoutesByTo
@@ -77,6 +97,8 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/setup'
+    | '/api/add-credit'
+    | '/api/buy-package'
     | '/api/public/jobs/expire-users'
     | '/api/public/mpesa/callback'
   id:
@@ -84,6 +106,8 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/setup'
+    | '/api/add-credit'
+    | '/api/buy-package'
     | '/api/public/jobs/expire-users'
     | '/api/public/mpesa/callback'
   fileRoutesById: FileRoutesById
@@ -92,6 +116,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   SetupRoute: typeof SetupRoute
+  ApiAddCreditRoute: typeof ApiAddCreditRoute
+  ApiBuyPackageRoute: typeof ApiBuyPackageRoute
   ApiPublicJobsExpireUsersRoute: typeof ApiPublicJobsExpireUsersRoute
   ApiPublicMpesaCallbackRoute: typeof ApiPublicMpesaCallbackRoute
 }
@@ -119,6 +145,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/add-credit': {
+      id: '/api/add-credit'
+      path: '/api/add-credit'
+      fullPath: '/api/add-credit'
+      preLoaderRoute: typeof ApiAddCreditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/buy-package': {
+      id: '/api/buy-package'
+      path: '/api/buy-package'
+      fullPath: '/api/buy-package'
+      preLoaderRoute: typeof ApiBuyPackageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/expire-users': {
       id: '/api/public/jobs/expire-users'
       path: '/api/public/jobs/expire-users'
@@ -140,6 +180,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   SetupRoute: SetupRoute,
+  ApiAddCreditRoute: ApiAddCreditRoute,
+  ApiBuyPackageRoute: ApiBuyPackageRoute,
   ApiPublicJobsExpireUsersRoute: ApiPublicJobsExpireUsersRoute,
   ApiPublicMpesaCallbackRoute: ApiPublicMpesaCallbackRoute,
 }
