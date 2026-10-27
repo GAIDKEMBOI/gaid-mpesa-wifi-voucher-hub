@@ -9,3 +9,6 @@
 - [x] Secure admin login: one-time setup code, strong password, lockout, change password
 - [x] M-Pesa Daraja sandbox (test) mode with user's sandbox keys; published
 - [ ] Later: Live mode for Till 5813215 (waiting on user: live keys, store number, live passkey)
+- [ ] Admin payment status panel: each STK push pending/successful/failed + when internet turned on
+- [ ] AMAZONS-style portal redesign: customer sign-in, greeting, prepaid credit + net points box, free WiFi banner, active subscriptions with timer, voucher box, offers filter (1 / 2+ devices), BUY from credit
+- [ ] Prepaid credit backend: prepaid_accounts + active_subscriptions tables, M-Pesa payment adds credit (no auto-activate), buy deducts credit, add-credit and buy-package endpoints
