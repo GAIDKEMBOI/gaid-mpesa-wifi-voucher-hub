@@ -73,6 +73,7 @@ export async function sweepExpired(): Promise<number> {
   for (const mac of macs) {
     if (!(await getActiveSession(mac))) await router.removeMac(mac);
   }
+  await db.from("active_subscriptions").update({ status: "expired", updated_at: now }).eq("status", "active").lte("expiry", now);
   return macs.length;
 }
 
@@ -84,7 +85,11 @@ export async function disconnectMac(mac: string) {
     .eq("status", "active");
 }
 
-/** Pending -> success exactly once, then grants access. */
+/**
+ * Pending -> success exactly once.
+ * "package" payments (old flow) grant access directly; "topup" payments add the money to the
+ * customer's prepaid credit, then buy the chosen package from that credit.
+ */
 export async function finalizeSuccess(txnId: string, mpesaCode: string | null) {
   const { data } = await db
     .from("transactions")
@@ -99,7 +104,46 @@ export async function finalizeSuccess(txnId: string, mpesaCode: string | null) {
     .select("*")
     .maybeSingle();
   if (!data) return; // already handled
+  if (data.purpose === "topup") {
+    const { error } = await db.rpc("add_credit", { _phone: data.phone, _amount: data.amount });
+    if (error) {
+      console.error("add_credit", error);
+      return;
+    }
+    const pkg = getPackage(data.package);
+    if (!pkg) return;
+    const { buyFromCredit } = await import("@/lib/prepaid.server");
+    const r = await buyFromCredit(data.phone, pkg, data.mac);
+    if (!r.ok) {
+      await db.from("transactions").update({ result_desc: `Paid; credit added (${r.error})` }).eq("id", txnId);
+    }
+    return;
+  }
   await activateAccess({ mac: data.mac, phone: data.phone, packageId: data.package, source: "mpesa" });
+}
+
+/** Ensures the device is on the allowed list at least until `expiry` (never shortens existing time). */
+export async function grantUntil(input: { mac: string; phone: string | null; packageId: string; expiry: Date; source: string }) {
+  const current = await getActiveSession(input.mac);
+  const nowIso = new Date().toISOString();
+  if (current) {
+    if (new Date(current.expiry).getTime() >= input.expiry.getTime()) return new Date(current.expiry);
+    await db
+      .from("users")
+      .update({ expiry: input.expiry.toISOString(), package: input.packageId, phone: input.phone ?? current.phone, updated_at: nowIso })
+      .eq("id", current.id);
+  } else {
+    await db.from("users").insert({
+      mac: input.mac,
+      phone: input.phone,
+      package: input.packageId,
+      expiry: input.expiry.toISOString(),
+      status: "active",
+      source: input.source,
+    });
+  }
+  await router.allowMac(input.mac, input.expiry);
+  return input.expiry;
 }
 
 export async function finalizeFailure(txnId: string, status: "failed" | "cancelled", desc: string) {
@@ -134,6 +178,28 @@ export function safeEqual(a: string, b: string): boolean {
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
+}
+
+/** Signed token for a non-admin purpose (e.g. customer sessions); the purpose is part of the signature. */
+export async function signToken(purpose: string, body: Record<string, unknown>): Promise<string> {
+  const payload = b64url(enc.encode(JSON.stringify(body)));
+  return `${payload}.${await hmac(`${purpose}:${payload}`)}`;
+}
+
+export async function verifyToken<T>(purpose: string, token: string | undefined): Promise<T | null> {
+  if (!token) return null;
+  const [payload, sig] = token.split(".");
+  if (!payload || !sig || !safeEqual(await hmac(`${purpose}:${payload}`), sig)) return null;
+  try {
+    return JSON.parse(new TextDecoder().decode(fromB64url(payload))) as T;
+  } catch {
+    return null;
+  }
+}
+
+/** Keyed hash for short secrets such as SMS codes. */
+export async function keyedHash(purpose: string, value: string): Promise<string> {
+  return hmac(`${purpose}:${value}`);
 }
 
 async function hmac(data: string): Promise<string> {
