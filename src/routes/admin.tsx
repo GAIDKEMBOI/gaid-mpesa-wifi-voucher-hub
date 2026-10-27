@@ -848,7 +848,7 @@ function PaymentCard({ t, now }: { t: Txn; now: number }) {
   }[state];
 
   const steps = [
-    { label: "Prompt sent", done: t.stkSent, bad: !t.stkSent && state === "failed" },
+    { label: t.stkSent || state === "pending" ? "Prompt sent" : "Prompt not sent", done: t.stkSent, bad: !t.stkSent && state === "failed" },
     { label: "PIN & payment", done: state === "success", bad: state === "failed" && t.stkSent },
     { label: "Internet on", done: access === "on" || access === "ended", bad: access === "not_activated" },
   ];
