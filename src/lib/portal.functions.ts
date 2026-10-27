@@ -1,10 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { PACKAGE_IDS, getPackage, normalizeMac, normalizePhone, normalizeVoucher } from "@/lib/wifi";
-import { activateAccess, db, finalizeFailure, getActiveSession, isBlocked } from "@/lib/access.server";
-import { getMpesaConfig, mpesaMode, stkPush } from "@/lib/mpesa.server";
-import { refreshPendingTransaction } from "@/lib/payments.server";
+import { activateAccess, db, getActiveSession, isBlocked } from "@/lib/access.server";
+import { mpesaMode } from "@/lib/mpesa.server";
+import { refreshPendingTransaction, startStkPayment } from "@/lib/payments.server";
 
 const macSchema = z
   .string()
@@ -44,47 +43,14 @@ export const startPayment = createServerFn({ method: "POST" })
     const pkg = getPackage(data.packageId)!;
     if (await isBlocked(data.mac)) return { ok: false as const, error: "This device is blocked. Contact the admin." };
 
-    const cfg = getMpesaConfig();
-    const callbackToken = crypto.randomUUID();
-    const { data: txn, error } = await db
-      .from("transactions")
-      .insert({
-        phone,
-        mac: data.mac,
-        package: pkg.id,
-        amount: pkg.price,
-        callback_token: callbackToken,
-        is_mock: !cfg,
-        status: "pending",
-      })
-      .select("id")
-      .single();
-    if (error || !txn) {
-      console.error(error);
-      return { ok: false as const, error: "Could not start payment. Try again." };
-    }
-
-    if (cfg) {
-      const base = process.env["MPESA_CALLBACK_BASE_URL"] || new URL(getRequest().url).origin;
-      try {
-        const r = await stkPush(cfg, {
-          phone,
-          amount: pkg.price,
-          callbackUrl: `${base.replace(/\/$/, "")}/api/public/mpesa/callback?t=${callbackToken}`,
-          reference: "GAIDWIFI",
-          description: `WiFi ${pkg.label}`,
-        });
-        await db
-          .from("transactions")
-          .update({ checkout_request_id: r.checkoutRequestId, merchant_request_id: r.merchantRequestId })
-          .eq("id", txn.id);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "M-Pesa request failed";
-        await finalizeFailure(txn.id, "failed", msg);
-        return { ok: false as const, error: msg };
-      }
-    }
-    return { ok: true as const, transactionId: txn.id, mock: !cfg };
+    return startStkPayment({
+      phone,
+      mac: data.mac,
+      packageId: pkg.id,
+      amount: pkg.price,
+      purpose: "package",
+      description: `WiFi ${pkg.label}`,
+    });
   });
 
 export const checkPayment = createServerFn({ method: "POST" })
