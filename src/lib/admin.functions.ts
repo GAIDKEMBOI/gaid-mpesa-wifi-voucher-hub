@@ -27,6 +27,7 @@ import {
 } from "@/lib/access.server";
 import { router, routerMode } from "@/lib/mikrotik.server";
 import { mpesaMissingKeys, mpesaMode } from "@/lib/mpesa.server";
+import { refreshPendingTransaction } from "@/lib/payments.server";
 
 const token = z.string().max(500);
 const mac = z
@@ -141,16 +142,64 @@ export const getDashboard = createServerFn({ method: "POST" })
     };
   });
 
+const TXN_COLUMNS =
+  "id, phone, mac, package, amount, mpesa_code, status, result_desc, is_mock, checkout_request_id, last_query_at, created_at, updated_at";
+
+/** STK pushes with their payment state and what each one did for the customer's internet. */
 export const listTransactions = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ token }).parse(d))
   .handler(async ({ data }) => {
     await requireAdmin(data.token);
-    const { data: rows } = await db
-      .from("transactions")
-      .select("id, phone, mac, package, amount, mpesa_code, status, result_desc, is_mock, created_at")
-      .order("created_at", { ascending: false })
-      .limit(300);
-    return rows ?? [];
+    const load = async () =>
+      (await db.from("transactions").select(TXN_COLUMNS).order("created_at", { ascending: false }).limit(300)).data ?? [];
+    let rows = await load();
+
+    // Move waiting payments forward (Daraja status check / timeout) so the panel never shows stale "pending".
+    const pending = rows.filter((r) => r.status === "pending").slice(0, 10);
+    if (pending.length) {
+      await Promise.all(pending.map((t) => refreshPendingTransaction(t).catch((e) => console.error(e))));
+      rows = await load();
+    }
+
+    const paidMacs = [...new Set(rows.filter((r) => r.status === "success").map((r) => r.mac))];
+    const { data: grants } = paidMacs.length
+      ? await db.from("users").select("mac, expiry, status").in("mac", paidMacs)
+      : { data: [] as { mac: string; expiry: string; status: string }[] };
+    const nowMs = Date.now();
+
+    return rows.map((t) => {
+      let accessUntil: string | null = null;
+      let stillActive = false;
+      if (t.status === "success") {
+        // Access granted by this payment = latest expiry for this device set at/after the payment confirmed.
+        const paidAt = new Date(t.updated_at).getTime();
+        for (const g of grants ?? []) {
+          if (g.mac !== t.mac) continue;
+          const exp = new Date(g.expiry).getTime();
+          if (exp <= paidAt) continue;
+          if (!accessUntil || exp > new Date(accessUntil).getTime()) {
+            accessUntil = g.expiry;
+            stillActive = g.status === "active" && exp > nowMs;
+          }
+        }
+      }
+      return {
+        id: t.id,
+        phone: t.phone,
+        mac: t.mac,
+        package: t.package,
+        amount: t.amount,
+        mpesa_code: t.mpesa_code,
+        status: t.status,
+        result_desc: t.result_desc,
+        is_mock: t.is_mock,
+        stkSent: Boolean(t.checkout_request_id) || t.is_mock,
+        created_at: t.created_at,
+        updated_at: t.updated_at,
+        accessUntil,
+        stillActive,
+      };
+    });
   });
 
 export const listVouchers = createServerFn({ method: "POST" })

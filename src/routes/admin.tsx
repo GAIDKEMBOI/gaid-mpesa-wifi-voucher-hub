@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { Ban, Copy, Download, Eye, EyeOff, Loader2, LogOut, Plus, Printer, RefreshCw, ShieldCheck, Users, Wallet, Wifi } from "lucide-react";
+import { Ban, CheckCircle2, Clock, Copy, Download, Eye, EyeOff, Loader2, LogOut, Plus, Printer, RefreshCw, ShieldCheck, Smartphone, Users, Wallet, Wifi, WifiOff, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,10 @@ import {
   LOGIN_LOCK_MINUTES,
   LOGIN_MAX_FAILS_PER_DEVICE,
   PACKAGES,
+  PAYMENT_TIMEOUT_MS,
+  paymentAccess,
+  paymentState,
+  type PaymentState,
   adminPasswordProblem,
   formatTimeLeft,
   getPackage,
@@ -299,7 +303,8 @@ function Dashboard({ token, onToken, onLogout }: { token: string; onToken: (t: s
   const txs = useQuery({
     queryKey: ["transactions", token],
     queryFn: () => txFn({ data: { token } }),
-    refetchInterval: 15000,
+    // Check faster while any STK push is still waiting for the customer's PIN
+    refetchInterval: (q) => (q.state.data?.some((t) => t.status === "pending") ? 4000 : 15000),
   });
   const vouchers = useQuery({ queryKey: ["vouchers", token], queryFn: () => vFn({ data: { token } }) });
 
@@ -435,38 +440,7 @@ function Dashboard({ token, onToken, onLogout }: { token: string; onToken: (t: s
           </TabsContent>
 
           <TabsContent value="mpesa">
-            <TableWrap>
-              <thead>
-                <tr>
-                  <Th>Time</Th>
-                  <Th>Phone</Th>
-                  <Th>Amount</Th>
-                  <Th>Package</Th>
-                  <Th>M-Pesa Code</Th>
-                  <Th>Status</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {(txs.data ?? []).map((t) => (
-                  <tr key={t.id} className="border-t border-border">
-                    <Td className="whitespace-nowrap text-xs">
-                      {new Date(t.created_at).toLocaleString("en-KE", { dateStyle: "short", timeStyle: "short" })}
-                    </Td>
-                    <Td>{t.phone}</Td>
-                    <Td className="font-semibold">KES {t.amount}</Td>
-                    <Td>{getPackage(t.package)?.label ?? t.package}</Td>
-                    <Td className="font-mono text-xs">
-                      {t.mpesa_code ?? "—"}
-                      {t.is_mock && <span className="ml-1 text-muted-foreground">(test)</span>}
-                    </Td>
-                    <Td>
-                      <StatusPill status={t.status} title={t.result_desc ?? undefined} />
-                    </Td>
-                  </tr>
-                ))}
-                {txs.data && txs.data.length === 0 && <EmptyRow cols={6} text="No payments yet" />}
-              </tbody>
-            </TableWrap>
+            <PaymentStatusPanel txs={txs.data} mode={d?.mpesaMode} now={now} />
           </TabsContent>
 
           <TabsContent value="blocked">
@@ -780,5 +754,177 @@ function BlockPanel({
         </tbody>
       </TableWrap>
     </div>
+  );
+}
+
+// ---------- Payment (STK push) status panel ----------
+
+type Txn = Awaited<ReturnType<typeof listTransactions>>[number];
+type TxnFilter = "all" | PaymentState;
+
+const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" });
+
+function PaymentStatusPanel({ txs, mode, now }: { txs: Txn[] | undefined; mode: string | undefined; now: number }) {
+  const [filter, setFilter] = useState<TxnFilter>("all");
+  const counts = useMemo(() => {
+    const c = { all: 0, pending: 0, success: 0, failed: 0 };
+    for (const t of txs ?? []) {
+      c.all++;
+      c[paymentState(t.status)]++;
+    }
+    return c;
+  }, [txs]);
+  const shown = (txs ?? []).filter((t) => filter === "all" || paymentState(t.status) === filter);
+
+  const filters: { id: TxnFilter; label: string }[] = [
+    { id: "all", label: "All" },
+    { id: "pending", label: "Pending" },
+    { id: "success", label: "Successful" },
+    { id: "failed", label: "Failed" },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl border border-border bg-card p-4 text-sm shadow-card">
+        <div className="flex items-center gap-2 font-semibold">
+          <Smartphone className="h-4 w-4 text-primary" />
+          {mode === "live" ? "Live M-Pesa payments" : mode === "sandbox" ? "Daraja Sandbox payments (test money)" : "Test-mode payments (simulated)"}
+        </div>
+        <p className="mt-1 text-muted-foreground">
+          Each card is one M-Pesa prompt sent to a customer's phone. <strong className="text-warning">Pending</strong> means
+          we are waiting for the PIN. <strong className="text-success">Successful</strong> means the money arrived and the
+          customer's device was let onto the WiFi at that moment. <strong className="text-destructive">Failed</strong> means
+          no money was taken and internet stays off. Unanswered prompts fail after {PAYMENT_TIMEOUT_MS / 60_000} minutes.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {filters.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => setFilter(f.id)}
+            aria-pressed={filter === f.id}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors",
+              filter === f.id ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:bg-accent",
+            )}
+          >
+            {f.label} <span className="tabular-nums opacity-80">{counts[f.id]}</span>
+          </button>
+        ))}
+      </div>
+
+      {!txs && (
+        <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading payments…
+        </div>
+      )}
+      {txs && shown.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
+          {filter === "all" ? "No payments yet" : "No payments in this group"}
+        </div>
+      )}
+
+      <ul className="space-y-2">
+        {shown.map((t) => (
+          <PaymentCard key={t.id} t={t} now={now} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function PaymentCard({ t, now }: { t: Txn; now: number }) {
+  const state = paymentState(t.status);
+  const access = paymentAccess(t.status, t.accessUntil ? new Date(t.accessUntil) : null, new Date(now), t.stillActive);
+  const waited = Math.max(0, now - new Date(t.created_at).getTime());
+
+  const tone = {
+    pending: { border: "border-warning/50", text: "text-warning", icon: <Clock className="h-5 w-5" />, label: "Pending" },
+    success: { border: "border-success/50", text: "text-success", icon: <CheckCircle2 className="h-5 w-5" />, label: "Successful" },
+    failed: { border: "border-destructive/50", text: "text-destructive", icon: <XCircle className="h-5 w-5" />, label: t.status === "cancelled" ? "Cancelled" : "Failed" },
+  }[state];
+
+  const steps = [
+    { label: t.stkSent || state === "pending" ? "Prompt sent" : "Prompt not sent", done: t.stkSent, bad: !t.stkSent && state === "failed" },
+    { label: "PIN & payment", done: state === "success", bad: state === "failed" && t.stkSent },
+    { label: "Internet on", done: access === "on" || access === "ended", bad: access === "not_activated" },
+  ];
+
+  return (
+    <li className={cn("rounded-2xl border bg-card p-4 shadow-card", tone.border)}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-semibold">
+            {t.phone} · <span className="text-primary">KES {t.amount}</span> · {getPackage(t.package)?.label ?? t.package}
+          </div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            {fmtTime(t.created_at)} · <span className="font-mono">{t.mac}</span>
+            {t.mpesa_code && <> · Code <span className="font-mono text-foreground">{t.mpesa_code}</span></>}
+            {t.is_mock && " · simulated"}
+          </div>
+        </div>
+        <span className={cn("flex shrink-0 items-center gap-1 text-sm font-bold", tone.text)}>
+          {tone.icon} {tone.label}
+        </span>
+      </div>
+
+      <ol className="mt-3 grid grid-cols-3 gap-1.5 text-[11px] font-semibold uppercase tracking-wide">
+        {steps.map((s) => (
+          <li
+            key={s.label}
+            className={cn(
+              "rounded-md px-2 py-1 text-center",
+              s.done ? "bg-success/15 text-success" : s.bad ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground",
+            )}
+          >
+            {s.label}
+          </li>
+        ))}
+      </ol>
+
+      <p className="mt-3 flex items-start gap-2 text-sm">
+        {access === "on" ? (
+          <Wifi className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+        ) : (
+          <WifiOff className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
+        <span className="text-muted-foreground">
+          {access === "waiting" && (
+            <>
+              {t.stkSent ? "Prompt is on the customer's phone" : "Sending prompt"} — waiting {formatTimeLeft(waited)} for the PIN.
+              Internet is <strong className="text-foreground">not on yet</strong>; it turns on the moment payment is confirmed.
+            </>
+          )}
+          {access === "on" && (
+            <>
+              Internet turned on at <strong className="text-foreground">{fmtTime(t.updated_at)}</strong> when payment was
+              confirmed. Online now, <strong className="text-success">{formatTimeLeft(new Date(t.accessUntil!).getTime() - now)}</strong> left
+              (until {fmtTime(t.accessUntil!)}).
+            </>
+          )}
+          {access === "ended" && (
+            <>
+              Internet turned on at <strong className="text-foreground">{fmtTime(t.updated_at)}</strong>. That time has
+              ended or the device was disconnected.
+            </>
+          )}
+          {access === "not_activated" && (
+            <>
+              <strong className="text-destructive">Paid, but internet was not turned on for this device.</strong> Use "Add
+              user" with MAC <span className="font-mono">{t.mac}</span> to give the customer their {getPackage(t.package)?.label ?? t.package}.
+            </>
+          )}
+          {access === "none" && (
+            <>
+              No money taken, internet stays off.
+              {t.result_desc && <> Reason: <strong className="text-foreground">{t.result_desc}</strong></>}
+            </>
+          )}
+        </span>
+      </p>
+    </li>
   );
 }
