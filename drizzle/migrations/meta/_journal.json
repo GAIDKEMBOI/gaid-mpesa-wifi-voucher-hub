@@ -15,6 +15,13 @@
       "when": 1792773348460,
       "tag": "0001_admin_account_and_login_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793106366462,
+      "tag": "0002_prepaid_accounts_and_subscriptions",
+      "breakpoints": true
     }
   ]
 }

@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      active_subscriptions: {
+        Row: {
+          created_at: string
+          devices: number
+          expiry: string
+          id: string
+          package: string
+          phone: string
+          price: number
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          devices?: number
+          expiry: string
+          id?: string
+          package: string
+          phone: string
+          price?: number
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          devices?: number
+          expiry?: string
+          id?: string
+          package?: string
+          phone?: string
+          price?: number
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "active_subscriptions_phone_fkey"
+            columns: ["phone"]
+            isOneToOne: false
+            referencedRelation: "prepaid_accounts"
+            referencedColumns: ["phone"]
+          },
+        ]
+      }
       admin_account: {
         Row: {
           created_at: string
@@ -86,6 +133,113 @@ export type Database = {
         }
         Relationships: []
       }
+      free_wifi_claims: {
+        Row: {
+          created_at: string
+          day: string
+          mac: string
+          phone: string
+        }
+        Insert: {
+          created_at?: string
+          day: string
+          mac: string
+          phone: string
+        }
+        Update: {
+          created_at?: string
+          day?: string
+          mac?: string
+          phone?: string
+        }
+        Relationships: []
+      }
+      phone_otps: {
+        Row: {
+          attempts: number
+          code_hash: string
+          expires_at: string
+          last_sent_at: string
+          phone: string
+          sends_in_window: number
+          window_start: string
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          expires_at: string
+          last_sent_at?: string
+          phone: string
+          sends_in_window?: number
+          window_start?: string
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          expires_at?: string
+          last_sent_at?: string
+          phone?: string
+          sends_in_window?: number
+          window_start?: string
+        }
+        Relationships: []
+      }
+      prepaid_accounts: {
+        Row: {
+          created_at: string
+          credit: number
+          name: string | null
+          net_points: number
+          phone: string
+          session_version: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credit?: number
+          name?: string | null
+          net_points?: number
+          phone: string
+          session_version?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credit?: number
+          name?: string | null
+          net_points?: number
+          phone?: string
+          session_version?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      subscription_devices: {
+        Row: {
+          created_at: string
+          mac: string
+          subscription_id: string
+        }
+        Insert: {
+          created_at?: string
+          mac: string
+          subscription_id: string
+        }
+        Update: {
+          created_at?: string
+          mac?: string
+          subscription_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_devices_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "active_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transactions: {
         Row: {
           amount: number
@@ -100,6 +254,7 @@ export type Database = {
           mpesa_code: string | null
           package: string
           phone: string
+          purpose: string
           result_desc: string | null
           status: string
           updated_at: string
@@ -117,6 +272,7 @@ export type Database = {
           mpesa_code?: string | null
           package: string
           phone: string
+          purpose?: string
           result_desc?: string | null
           status?: string
           updated_at?: string
@@ -134,6 +290,7 @@ export type Database = {
           mpesa_code?: string | null
           package?: string
           phone?: string
+          purpose?: string
           result_desc?: string | null
           status?: string
           updated_at?: string
@@ -214,7 +371,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      add_credit: { Args: { _amount: number; _phone: string }; Returns: number }
+      spend_credit: {
+        Args: { _amount: number; _phone: string }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
