@@ -1,23 +1,30 @@
 // Shared, browser-safe business rules for GAID WIFI SERVICES.
 
-export type PackageId = "30m" | "1h" | "2h" | "4h" | "12h" | "24h" | "7d" | "30d";
+export type PackageId =
+  | "30m" | "1h" | "2h" | "4h" | "12h" | "24h" | "7d" | "30d"
+  | "4h-2d" | "24h-2d" | "3d-2d";
 
 export interface WifiPackage {
   id: PackageId;
   label: string;
   price: number; // KES
   minutes: number;
+  devices: number; // how many devices may use it at the same time
+  speedMbps?: number;
 }
 
 export const PACKAGES: WifiPackage[] = [
-  { id: "30m", label: "30 Mins", price: 5, minutes: 30 },
-  { id: "1h", label: "1 Hour", price: 10, minutes: 60 },
-  { id: "2h", label: "2 Hours", price: 12, minutes: 2 * 60 },
-  { id: "4h", label: "4 Hours", price: 20, minutes: 4 * 60 },
-  { id: "12h", label: "12 Hours", price: 30, minutes: 12 * 60 },
-  { id: "24h", label: "24 Hours", price: 45, minutes: 24 * 60 },
-  { id: "7d", label: "1 Week", price: 200, minutes: 7 * 24 * 60 },
-  { id: "30d", label: "1 Month", price: 600, minutes: 30 * 24 * 60 },
+  { id: "30m", label: "30 Mins", price: 5, minutes: 30, devices: 1 },
+  { id: "1h", label: "1 Hour", price: 10, minutes: 60, devices: 1 },
+  { id: "2h", label: "2 Hours", price: 12, minutes: 2 * 60, devices: 1 },
+  { id: "4h", label: "4 Hours", price: 20, minutes: 4 * 60, devices: 1 },
+  { id: "12h", label: "12 Hours", price: 30, minutes: 12 * 60, devices: 1 },
+  { id: "24h", label: "24 Hours", price: 45, minutes: 24 * 60, devices: 1 },
+  { id: "7d", label: "1 Week", price: 200, minutes: 7 * 24 * 60, devices: 1 },
+  { id: "30d", label: "1 Month", price: 600, minutes: 30 * 24 * 60, devices: 1 },
+  { id: "4h-2d", label: "4HRS 2 Devices", price: 30, minutes: 4 * 60, devices: 2, speedMbps: 5 },
+  { id: "24h-2d", label: "24HRS 2 Devices", price: 70, minutes: 24 * 60, devices: 2, speedMbps: 5 },
+  { id: "3d-2d", label: "3 Days 2 Devices", price: 135, minutes: 72 * 60, devices: 2, speedMbps: 5 },
 ];
 
 export const PACKAGE_IDS = PACKAGES.map((p) => p.id) as [PackageId, ...PackageId[]];
@@ -161,4 +168,60 @@ export function paymentAccess(status: string, accessUntil: Date | null, now: Dat
   if (s === "failed") return "none";
   if (!accessUntil) return "not_activated";
   return stillActive && accessUntil.getTime() > now.getTime() ? "on" : "ended";
+}
+
+// ---------- Prepaid credit, sign-in codes and free WiFi ----------
+
+/** Amount (whole KES) the customer must top up to afford a price; 0 when credit is enough. */
+export function topUpShortfall(price: number, credit: number): number {
+  return Math.max(0, Math.ceil(price - credit));
+}
+
+/** Can another device join a subscription with this many slots? */
+export function hasFreeSlot(slots: number, used: number): boolean {
+  return used < slots;
+}
+
+export const OTP_LENGTH = 6;
+export const OTP_TTL_MINUTES = 5;
+export const OTP_MAX_ATTEMPTS = 5;
+export const OTP_RESEND_SECONDS = 60;
+export const OTP_MAX_SENDS_PER_HOUR = 5;
+
+export const FREE_WIFI_START_HOUR = 6; // Kenya time
+export const FREE_WIFI_END_HOUR = 8;
+
+const KENYA_OFFSET_MS = 3 * 3600_000;
+
+function kenyaHour(now: Date): number {
+  return new Date(now.getTime() + KENYA_OFFSET_MS).getUTCHours();
+}
+
+/** Free WiFi runs daily from 6:00 to 8:00 AM Kenya time. */
+export function isFreeWifiTime(now: Date): boolean {
+  const h = kenyaHour(now);
+  return h >= FREE_WIFI_START_HOUR && h < FREE_WIFI_END_HOUR;
+}
+
+/** 8:00 AM Kenya time on the current Kenya day. */
+export function freeWifiEndsAt(now: Date): Date {
+  return new Date(startOfKenyaDay(now).getTime() + FREE_WIFI_END_HOUR * 3600_000);
+}
+
+/** Kenya calendar day as YYYY-MM-DD. */
+export function kenyaDay(now: Date): string {
+  return new Date(now.getTime() + KENYA_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** "Good Morning" before 12:00, "Good Afternoon" before 17:00, else "Good Evening" (Kenya time). */
+export function greeting(now: Date): string {
+  const h = kenyaHour(now);
+  if (h < 12) return "Good Morning";
+  if (h < 17) return "Good Afternoon";
+  return "Good Evening";
+}
+
+/** Customer-facing package line, e.g. "Sh5 = 30 Mins UnlimiNET - 1 Device". */
+export function packageLine(p: WifiPackage): string {
+  return `Sh${p.price} = ${p.label.replace(/ \d+ Devices$/, "")} UnlimiNET - ${p.devices} Device${p.devices > 1 ? "s" : ""}`;
 }

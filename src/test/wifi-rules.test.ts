@@ -13,6 +13,12 @@ import {
   PAYMENT_TIMEOUT_MS,
   paymentAccess,
   paymentState,
+  topUpShortfall,
+  hasFreeSlot,
+  isFreeWifiTime,
+  freeWifiEndsAt,
+  greeting,
+  kenyaDay,
 } from "@/lib/wifi";
 
 describe("packages", () => {
@@ -130,4 +136,38 @@ describe("payment status panel rules", () => {
   it("successful payment with no access granted is flagged", () => {
     expect(paymentAccess("success", null, now, false)).toBe("not_activated");
   });
+});
+
+describe("two-device packages", () => {
+  const cases: [string, number, number][] = [["4h-2d", 30, 240], ["24h-2d", 70, 1440], ["3d-2d", 135, 4320]];
+  for (const [id, price, minutes] of cases)
+    it(`${id} costs ${price} KES for 2 devices at 5 Mbps`, () =>
+      expect(getPackage(id)).toMatchObject({ price, minutes, devices: 2, speedMbps: 5 }));
+  it("single-device packages allow 1 device", () => expect(getPackage("24h")?.devices).toBe(1));
+});
+
+describe("prepaid credit", () => {
+  it("no top-up needed when credit covers the price", () => expect(topUpShortfall(45, 50)).toBe(0));
+  it("tops up only the missing amount", () => expect(topUpShortfall(45, 20)).toBe(25));
+  it("rounds a fractional shortfall up to whole shillings", () => expect(topUpShortfall(10, 2.5)).toBe(8));
+  it("2-device package: second device fits, third does not", () => {
+    expect(hasFreeSlot(2, 1)).toBe(true);
+    expect(hasFreeSlot(2, 2)).toBe(false);
+  });
+});
+
+describe("free WiFi 6:00-8:00 AM Kenya time", () => {
+  it("is free at 6:00 Kenya (03:00 UTC)", () => expect(isFreeWifiTime(new Date("2026-10-27T03:00:00Z"))).toBe(true));
+  it("is free at 7:59 Kenya", () => expect(isFreeWifiTime(new Date("2026-10-27T04:59:00Z"))).toBe(true));
+  it("is not free at 8:00 Kenya", () => expect(isFreeWifiTime(new Date("2026-10-27T05:00:00Z"))).toBe(false));
+  it("is not free at 5:59 Kenya", () => expect(isFreeWifiTime(new Date("2026-10-27T02:59:00Z"))).toBe(false));
+  it("free session ends at 8:00 Kenya", () =>
+    expect(freeWifiEndsAt(new Date("2026-10-27T03:30:00Z")).toISOString()).toBe("2026-10-27T05:00:00.000Z"));
+  it("Kenya day rolls over at midnight Kenya time", () => expect(kenyaDay(new Date("2026-10-27T21:30:00Z"))).toBe("2026-10-28"));
+});
+
+describe("greeting", () => {
+  it("afternoon at 15:48 Kenya", () => expect(greeting(new Date("2026-10-27T12:48:00Z"))).toBe("Good Afternoon"));
+  it("morning at 7:00 Kenya", () => expect(greeting(new Date("2026-10-27T04:00:00Z"))).toBe("Good Morning"));
+  it("evening at 19:00 Kenya", () => expect(greeting(new Date("2026-10-27T16:00:00Z"))).toBe("Good Evening"));
 });
