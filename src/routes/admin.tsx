@@ -299,7 +299,8 @@ function Dashboard({ token, onToken, onLogout }: { token: string; onToken: (t: s
   const txs = useQuery({
     queryKey: ["transactions", token],
     queryFn: () => txFn({ data: { token } }),
-    refetchInterval: 15000,
+    // Check faster while any STK push is still waiting for the customer's PIN
+    refetchInterval: (q) => (q.state.data?.some((t) => t.status === "pending") ? 4000 : 15000),
   });
   const vouchers = useQuery({ queryKey: ["vouchers", token], queryFn: () => vFn({ data: { token } }) });
 
@@ -435,38 +436,7 @@ function Dashboard({ token, onToken, onLogout }: { token: string; onToken: (t: s
           </TabsContent>
 
           <TabsContent value="mpesa">
-            <TableWrap>
-              <thead>
-                <tr>
-                  <Th>Time</Th>
-                  <Th>Phone</Th>
-                  <Th>Amount</Th>
-                  <Th>Package</Th>
-                  <Th>M-Pesa Code</Th>
-                  <Th>Status</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {(txs.data ?? []).map((t) => (
-                  <tr key={t.id} className="border-t border-border">
-                    <Td className="whitespace-nowrap text-xs">
-                      {new Date(t.created_at).toLocaleString("en-KE", { dateStyle: "short", timeStyle: "short" })}
-                    </Td>
-                    <Td>{t.phone}</Td>
-                    <Td className="font-semibold">KES {t.amount}</Td>
-                    <Td>{getPackage(t.package)?.label ?? t.package}</Td>
-                    <Td className="font-mono text-xs">
-                      {t.mpesa_code ?? "—"}
-                      {t.is_mock && <span className="ml-1 text-muted-foreground">(test)</span>}
-                    </Td>
-                    <Td>
-                      <StatusPill status={t.status} title={t.result_desc ?? undefined} />
-                    </Td>
-                  </tr>
-                ))}
-                {txs.data && txs.data.length === 0 && <EmptyRow cols={6} text="No payments yet" />}
-              </tbody>
-            </TableWrap>
+            <PaymentStatusPanel txs={txs.data} mode={d?.mpesaMode} now={now} />
           </TabsContent>
 
           <TabsContent value="blocked">
