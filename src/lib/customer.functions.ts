@@ -67,7 +67,7 @@ export const buyPackage = createServerFn({ method: "POST" })
       if (!r.insufficient) return { ok: false as const, error: r.error };
     }
     const { startStkPayment } = await import("@/lib/payments.server");
-    const amount = topUpShortfall(pkg.price, short === 0 ? 0 : account.credit) || pkg.price;
+    const amount = short === 0 ? pkg.price : short; // credit vanished meanwhile: charge the full price
     const r = await startStkPayment({
       phone: account.phone,
       mac: data.mac,
