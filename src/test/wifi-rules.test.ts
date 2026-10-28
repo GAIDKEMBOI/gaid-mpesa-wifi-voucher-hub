@@ -14,6 +14,8 @@ import {
   paymentAccess,
   paymentState,
   topUpShortfall,
+  topUpAmountProblem,
+  creditChangeProblem,
   hasFreeSlot,
   isFreeWifiTime,
   freeWifiEndsAt,
@@ -170,4 +172,23 @@ describe("greeting", () => {
   it("afternoon at 15:48 Kenya", () => expect(greeting(new Date("2026-10-27T12:48:00Z"))).toBe("Good Afternoon"));
   it("morning at 7:00 Kenya", () => expect(greeting(new Date("2026-10-27T04:00:00Z"))).toBe("Good Morning"));
   it("evening at 19:00 Kenya", () => expect(greeting(new Date("2026-10-27T16:00:00Z"))).toBe("Good Evening"));
+});
+
+describe("credit top-up by M-Pesa", () => {
+  it("Sh5 is the smallest top-up", () => {
+    expect(topUpAmountProblem(5)).toBeNull();
+    expect(topUpAmountProblem(4)).not.toBeNull();
+  });
+  it("Sh10,000 is the largest top-up", () => {
+    expect(topUpAmountProblem(10_000)).toBeNull();
+    expect(topUpAmountProblem(10_001)).not.toBeNull();
+  });
+  it("only whole shillings", () => expect(topUpAmountProblem(12.5)).not.toBeNull());
+});
+
+describe("admin credit change", () => {
+  it("can add credit", () => expect(creditChangeProblem(50, 0)).toBeNull());
+  it("can remove up to what the customer has", () => expect(creditChangeProblem(-20, 20)).toBeNull());
+  it("cannot remove more than the customer has", () => expect(creditChangeProblem(-21, 20)).not.toBeNull());
+  it("zero is not a change", () => expect(creditChangeProblem(0, 20)).not.toBeNull());
 });
