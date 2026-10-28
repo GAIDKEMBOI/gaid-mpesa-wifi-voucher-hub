@@ -10,5 +10,8 @@
 - [x] M-Pesa Daraja sandbox (test) mode with user's sandbox keys; published
 - [ ] Later: Live mode for Till 5813215 (waiting on user: live keys, store number, live passkey)
 - [x] Admin payment status panel: each STK push pending/successful/failed + when internet turned on
-- [ ] AMAZONS-style portal redesign: customer sign-in, greeting, prepaid credit + net points box, free WiFi banner, active subscriptions with timer, voucher box, offers filter (1 / 2+ devices), BUY from credit
-- [ ] Prepaid credit backend: prepaid_accounts + active_subscriptions tables, M-Pesa payment adds credit (no auto-activate), buy deducts credit, add-credit and buy-package endpoints
+- [x] AMAZONS-style portal redesign: customer sign-in, greeting, prepaid credit + net points box, free WiFi banner, active subscriptions with timer, voucher box, offers filter (1 / 2+ devices), BUY from credit
+- [x] Prepaid credit backend: prepaid_accounts + active_subscriptions tables, M-Pesa payment adds credit (no auto-activate), buy deducts credit, add-credit and buy-package endpoints
+- [x] Admin Customers tab: prepaid accounts, add/remove credit by hand; portal "Top up credit" (credit only)
+- [ ] Real SMS for sign-in codes (waiting on user: link an SMS account)
+- [ ] Header support number and captive.gaid.co.ke address (waiting on user)
