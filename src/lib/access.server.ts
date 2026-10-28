@@ -47,7 +47,7 @@ export async function activateAccess(input: {
       })
       .eq("id", current.id);
   } else {
-    await db.from("users").insert({
+    const { error } = await db.from("users").insert({
       mac: input.mac,
       phone: input.phone,
       package: pkg.id,
@@ -55,6 +55,7 @@ export async function activateAccess(input: {
       status: "active",
       source: input.source,
     });
+    if (error) throw error;
   }
   await router.allowMac(input.mac, expiry);
   return expiry;
@@ -135,12 +136,13 @@ export async function grantUntil(input: { mac: string; phone: string | null; pac
   const nowIso = new Date().toISOString();
   if (current) {
     if (new Date(current.expiry).getTime() >= input.expiry.getTime()) return new Date(current.expiry);
-    await db
+    const { error } = await db
       .from("users")
       .update({ expiry: input.expiry.toISOString(), package: input.packageId, phone: input.phone ?? current.phone, updated_at: nowIso })
       .eq("id", current.id);
+    if (error) throw error;
   } else {
-    await db.from("users").insert({
+    const { error } = await db.from("users").insert({
       mac: input.mac,
       phone: input.phone,
       package: input.packageId,
@@ -148,6 +150,7 @@ export async function grantUntil(input: { mac: string; phone: string | null; pac
       status: "active",
       source: input.source,
     });
+    if (error) throw error;
   }
   await router.allowMac(input.mac, input.expiry);
   return input.expiry;
