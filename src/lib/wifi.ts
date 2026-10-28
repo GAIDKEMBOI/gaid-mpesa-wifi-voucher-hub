@@ -1,8 +1,7 @@
 // Shared, browser-safe business rules for GAID WIFI SERVICES.
 
-export type PackageId =
-  | "30m" | "1h" | "2h" | "4h" | "12h" | "24h" | "7d" | "30d"
-  | "4h-2d" | "24h-2d" | "3d-2d";
+// Packages are managed by the admin and stored in the database (wifi_packages).
+export type PackageId = string;
 
 export interface WifiPackage {
   id: PackageId;
@@ -10,10 +9,11 @@ export interface WifiPackage {
   price: number; // KES
   minutes: number;
   devices: number; // how many devices may use it at the same time
-  speedMbps?: number;
+  speedMbps?: number | null;
 }
 
-export const PACKAGES: WifiPackage[] = [
+/** The list the database was first filled with. The live list is whatever the admin keeps in the database. */
+export const STARTING_PACKAGES: WifiPackage[] = [
   { id: "30m", label: "30 Mins", price: 5, minutes: 30, devices: 1 },
   { id: "1h", label: "1 Hour", price: 10, minutes: 60, devices: 1 },
   { id: "2h", label: "2 Hours", price: 12, minutes: 2 * 60, devices: 1 },
@@ -27,10 +27,74 @@ export const PACKAGES: WifiPackage[] = [
   { id: "3d-2d", label: "3 Days 2 Devices", price: 135, minutes: 72 * 60, devices: 2, speedMbps: 5 },
 ];
 
-export const PACKAGE_IDS = PACKAGES.map((p) => p.id) as [PackageId, ...PackageId[]];
+export function findPackage<T extends WifiPackage>(list: T[], id: string): T | undefined {
+  return list.find((p) => p.id === id);
+}
 
-export function getPackage(id: string): WifiPackage | undefined {
-  return PACKAGES.find((p) => p.id === id);
+/** Package id field in requests: any short id; the server checks it exists. */
+export const PACKAGE_ID_MAX = 40;
+
+// ---------- Admin package editing rules ----------
+
+export const PACKAGE_PRICE_MAX = 100_000; // KES
+export const PACKAGE_MINUTES_MAX = 365 * 24 * 60; // 1 year
+export const PACKAGE_DEVICES_MAX = 20;
+export const PACKAGE_SPEED_MAX = 10_000; // Mbps
+
+export interface PackageInput {
+  label: string;
+  price: number;
+  minutes: number;
+  devices: number;
+  speedMbps: number | null;
+}
+
+/** Reason a package the admin typed is not allowed, or null when it is fine. */
+export function packageProblem(p: PackageInput): string | null {
+  const label = p.label.trim();
+  if (label.length < 2) return "Give the package a name";
+  if (label.length > 40) return "Name is too long (40 letters max)";
+  if (!Number.isInteger(p.price) || p.price < 1) return "Price must be at least Sh1, whole shillings";
+  if (p.price > PACKAGE_PRICE_MAX) return `Price can't be more than Sh${PACKAGE_PRICE_MAX.toLocaleString("en-KE")}`;
+  if (!Number.isInteger(p.minutes) || p.minutes < 1) return "Time must be at least 1 minute";
+  if (p.minutes > PACKAGE_MINUTES_MAX) return "Time can't be more than 1 year";
+  if (!Number.isInteger(p.devices) || p.devices < 1) return "At least 1 device";
+  if (p.devices > PACKAGE_DEVICES_MAX) return `At most ${PACKAGE_DEVICES_MAX} devices`;
+  if (p.speedMbps !== null && (!Number.isInteger(p.speedMbps) || p.speedMbps < 1 || p.speedMbps > PACKAGE_SPEED_MAX))
+    return "Speed must be a whole number of Mbps, or left empty";
+  return null;
+}
+
+/** Short id for a new package from its name, unique among existing ids (e.g. "2 Hours Promo" -> "2-hours-promo"). */
+export function newPackageId(label: string, existing: string[]): string {
+  const base =
+    label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 30)
+      .replace(/-+$/g, "") || "pkg";
+  const taken = new Set(existing);
+  if (!taken.has(base) && base !== "free") return base;
+  for (let i = 2; ; i++) {
+    const id = `${base}-${i}`;
+    if (!taken.has(id)) return id;
+  }
+}
+
+export type DurationUnit = "minutes" | "hours" | "days";
+export const DURATION_UNIT_MINUTES: Record<DurationUnit, number> = { minutes: 1, hours: 60, days: 24 * 60 };
+
+/** Picks the biggest unit that divides the minutes evenly (1440 -> 1 days, 90 -> 90 minutes). */
+export function splitDuration(minutes: number): { amount: number; unit: DurationUnit } {
+  if (minutes % DURATION_UNIT_MINUTES.days === 0) return { amount: minutes / DURATION_UNIT_MINUTES.days, unit: "days" };
+  if (minutes % DURATION_UNIT_MINUTES.hours === 0) return { amount: minutes / DURATION_UNIT_MINUTES.hours, unit: "hours" };
+  return { amount: minutes, unit: "minutes" };
+}
+
+/** Customer order: single-device first, then by price. */
+export function sortPackages<T extends WifiPackage>(list: T[]): T[] {
+  return [...list].sort((a, b) => a.devices - b.devices || a.price - b.price || a.minutes - b.minutes);
 }
 
 /** New expiry: extends from the current expiry when the customer still has time left. */
