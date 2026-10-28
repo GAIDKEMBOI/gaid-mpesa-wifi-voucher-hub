@@ -29,6 +29,13 @@
       "when": 1793175108786,
       "tag": "0003_allow_credit_and_free_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793176188062,
+      "tag": "0004_wifi_packages",
+      "breakpoints": true
     }
   ]
 }

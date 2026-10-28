@@ -366,6 +366,48 @@ export type Database = {
         }
         Relationships: []
       }
+      wifi_packages: {
+        Row: {
+          created_at: string
+          devices: number
+          id: string
+          label: string
+          minutes: number
+          price: number
+          removed: boolean
+          sort_order: number
+          speed_mbps: number | null
+          updated_at: string
+          visible: boolean
+        }
+        Insert: {
+          created_at?: string
+          devices?: number
+          id: string
+          label: string
+          minutes: number
+          price: number
+          removed?: boolean
+          sort_order?: number
+          speed_mbps?: number | null
+          updated_at?: string
+          visible?: boolean
+        }
+        Update: {
+          created_at?: string
+          devices?: number
+          id?: string
+          label?: string
+          minutes?: number
+          price?: number
+          removed?: boolean
+          sort_order?: number
+          speed_mbps?: number | null
+          updated_at?: string
+          visible?: boolean
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
