@@ -57,17 +57,18 @@ export const checkPayment = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ transactionId: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const { data: txn } = await db.from("transactions").select("*").eq("id", data.transactionId).maybeSingle();
-    if (!txn) return { status: "failed" as const, message: "Payment not found", expiry: null };
+    if (!txn) return { status: "failed" as const, message: "Payment not found", expiry: null, purpose: "package" };
 
     await refreshPendingTransaction(txn);
 
     const { data: fresh } = await db
       .from("transactions")
-      .select("status, result_desc, mac")
+      .select("status, result_desc, mac, purpose")
       .eq("id", txn.id)
       .single();
-    const session = fresh?.status === "success" ? await getActiveSession(txn.mac) : null;
+    const session = fresh?.status === "success" && fresh.purpose !== "credit" ? await getActiveSession(txn.mac) : null;
     return {
+      purpose: fresh?.purpose ?? txn.purpose,
       status: (fresh?.status ?? "failed") as "pending" | "success" | "failed" | "cancelled",
       message: fresh?.result_desc ?? null,
       expiry: session?.expiry ?? null,

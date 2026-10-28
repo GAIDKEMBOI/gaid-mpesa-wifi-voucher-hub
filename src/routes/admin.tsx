@@ -23,6 +23,7 @@ import {
 } from "@/lib/wifi";
 import {
   addUserManual,
+  adjustCredit,
   adminLogin,
   blockMac,
   changeAdminPassword,
@@ -30,6 +31,7 @@ import {
   generateVouchers,
   getAdminStatus,
   getDashboard,
+  listCustomers,
   listTransactions,
   listVouchers,
   setupAdmin,
@@ -374,12 +376,17 @@ function Dashboard({ token, onToken, onLogout }: { token: string; onToken: (t: s
         <Tabs defaultValue="users">
           <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted p-1">
             <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="customers">Customers</TabsTrigger>
             <TabsTrigger value="add">Add user</TabsTrigger>
             <TabsTrigger value="vouchers">Vouchers</TabsTrigger>
             <TabsTrigger value="mpesa">M-Pesa</TabsTrigger>
             <TabsTrigger value="blocked">Blocked</TabsTrigger>
             <TabsTrigger value="account">Account</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="customers">
+            <CustomersPanel token={token} now={now} onLogout={onLogout} />
+          </TabsContent>
 
           <TabsContent value="users">
             <TableWrap>
@@ -838,6 +845,7 @@ function PaymentStatusPanel({ txs, mode, now }: { txs: Txn[] | undefined; mode: 
 
 function PaymentCard({ t, now }: { t: Txn; now: number }) {
   const state = paymentState(t.status);
+  const creditOnly = t.purpose === "credit";
   const access = paymentAccess(t.status, t.accessUntil ? new Date(t.accessUntil) : null, new Date(now), t.stillActive);
   const waited = Math.max(0, now - new Date(t.created_at).getTime());
 
@@ -850,7 +858,9 @@ function PaymentCard({ t, now }: { t: Txn; now: number }) {
   const steps = [
     { label: t.stkSent || state === "pending" ? "Prompt sent" : "Prompt not sent", done: t.stkSent, bad: !t.stkSent && state === "failed" },
     { label: "PIN & payment", done: state === "success", bad: state === "failed" && t.stkSent },
-    { label: "Internet on", done: access === "on" || access === "ended", bad: access === "not_activated" },
+    creditOnly
+      ? { label: "Credit added", done: state === "success", bad: state === "failed" }
+      : { label: "Internet on", done: access === "on" || access === "ended", bad: access === "not_activated" },
   ];
 
   return (
@@ -858,10 +868,12 @@ function PaymentCard({ t, now }: { t: Txn; now: number }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="font-semibold">
-            {t.phone} · <span className="text-primary">KES {t.amount}</span> · {getPackage(t.package)?.label ?? t.package}
+            {t.phone} · <span className="text-primary">KES {t.amount}</span> ·{" "}
+            {creditOnly ? "Credit top-up" : (getPackage(t.package)?.label ?? t.package)}
           </div>
           <div className="mt-0.5 text-xs text-muted-foreground">
-            {fmtTime(t.created_at)} · <span className="font-mono">{t.mac}</span>
+            {fmtTime(t.created_at)}
+            {t.mac !== "-" && <> · <span className="font-mono">{t.mac}</span></>}
             {t.mpesa_code && <> · Code <span className="font-mono text-foreground">{t.mpesa_code}</span></>}
             {t.is_mock && " · simulated"}
           </div>
@@ -892,26 +904,33 @@ function PaymentCard({ t, now }: { t: Txn; now: number }) {
           <WifiOff className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
         )}
         <span className="text-muted-foreground">
-          {access === "waiting" && (
+          {creditOnly && state === "success" && (
+            <>
+              <strong className="text-success">KES {t.amount} added to the customer's credit</strong> at{" "}
+              {fmtTime(t.updated_at)}. Internet starts when they tap BUY on a package.
+            </>
+          )}
+          {creditOnly && state === "pending" && <>Waiting for the PIN. When paid, the money goes into credit only.</>}
+          {!creditOnly && access === "waiting" && (
             <>
               {t.stkSent ? "Prompt is on the customer's phone" : "Sending prompt"} — waiting {formatTimeLeft(waited)} for the PIN.
               Internet is <strong className="text-foreground">not on yet</strong>; it turns on the moment payment is confirmed.
             </>
           )}
-          {access === "on" && (
+          {!creditOnly && access === "on" && (
             <>
               Internet turned on at <strong className="text-foreground">{fmtTime(t.updated_at)}</strong> when payment was
               confirmed. Online now, <strong className="text-success">{formatTimeLeft(new Date(t.accessUntil!).getTime() - now)}</strong> left
               (until {fmtTime(t.accessUntil!)}).
             </>
           )}
-          {access === "ended" && (
+          {!creditOnly && access === "ended" && (
             <>
               Internet turned on at <strong className="text-foreground">{fmtTime(t.updated_at)}</strong>. That time has
               ended or the device was disconnected.
             </>
           )}
-          {access === "not_activated" && (
+          {!creditOnly && access === "not_activated" && (
             <>
               <strong className="text-destructive">Paid, but internet was not turned on for this device.</strong> Use "Add
               user" with MAC <span className="font-mono">{t.mac}</span> to give the customer their {getPackage(t.package)?.label ?? t.package}.
@@ -926,5 +945,103 @@ function PaymentCard({ t, now }: { t: Txn; now: number }) {
         </span>
       </p>
     </li>
+  );
+}
+
+// ---------- Prepaid customers & credit ----------
+
+function CustomersPanel({ token, now, onLogout }: { token: string; now: number; onLogout: () => void }) {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listCustomers);
+  const adjustFn = useServerFn(adjustCredit);
+  const list = useQuery({ queryKey: ["customers", token], queryFn: () => listFn({ data: { token } }), refetchInterval: 20000 });
+  const [phone, setPhone] = useState("");
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState("");
+
+  async function change(sign: 1 | -1) {
+    const n = Number(amount);
+    if (!phone || !n) return void toast.error("Enter a phone number and amount");
+    setBusy(true);
+    try {
+      const r = await adjustFn({ data: { token, phone, change: sign * n } });
+      if (!r.ok) return void toast.error(r.error);
+      toast.success(`Credit for 0${r.phone.slice(3)} is now KES ${r.credit.toFixed(2)}`);
+      setAmount("");
+      void qc.invalidateQueries({ queryKey: ["customers"] });
+    } catch (e) {
+      if (!handleAuthError(e, onLogout)) toast.error("Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const rows = (list.data ?? []).filter(
+    (c) => !q || c.phone.includes(q.replace(/^0/, "")) || (c.name ?? "").toLowerCase().includes(q.toLowerCase()),
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="max-w-xl space-y-3 rounded-2xl border border-border bg-card p-4">
+        <h2 className="font-semibold">Add or remove credit by hand</h2>
+        <p className="text-xs text-muted-foreground">
+          Use this when a customer paid you in cash or by direct M-Pesa. Credit is not WiFi time: the customer taps BUY on the
+          portal to start a package.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-[1fr_8rem]">
+          <Input placeholder="Customer phone, e.g. 0712345678" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <Input placeholder="KES" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} />
+        </div>
+        <div className="flex gap-2">
+          <Button disabled={busy} onClick={() => change(1)}>
+            {busy ? <Loader2 className="animate-spin" /> : <Plus />} Add credit
+          </Button>
+          <Button variant="outline" disabled={busy} onClick={() => change(-1)}>
+            Remove credit
+          </Button>
+        </div>
+      </div>
+
+      <Input placeholder="Search phone or name" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" />
+      <TableWrap>
+        <thead>
+          <tr>
+            <Th>Phone</Th>
+            <Th>Name</Th>
+            <Th>Credit (KES)</Th>
+            <Th>Net Points</Th>
+            <Th>Active packages</Th>
+            <Th>Action</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((c) => (
+            <tr key={c.phone} className="border-t border-border">
+              <Td className="font-mono text-xs">0{c.phone.slice(3)}</Td>
+              <Td>{c.name ?? <span className="text-muted-foreground">—</span>}</Td>
+              <Td className="font-semibold tabular-nums text-success">{c.credit.toFixed(2)}</Td>
+              <Td className="tabular-nums">{c.net_points}</Td>
+              <Td className="tabular-nums">
+                {c.activeSubs > 0 && c.latestExpiry ? (
+                  <>
+                    {c.activeSubs} · {formatTimeLeft(new Date(c.latestExpiry).getTime() - now)} left
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">None</span>
+                )}
+              </Td>
+              <Td>
+                <Button size="sm" variant="outline" onClick={() => setPhone(`0${c.phone.slice(3)}`)}>
+                  Change credit
+                </Button>
+              </Td>
+            </tr>
+          ))}
+          {list.data && rows.length === 0 && <EmptyRow cols={6} text={q ? "No match" : "No prepaid customers yet"} />}
+          {!list.data && <EmptyRow cols={6} text="Loading…" />}
+        </tbody>
+      </TableWrap>
+    </div>
   );
 }

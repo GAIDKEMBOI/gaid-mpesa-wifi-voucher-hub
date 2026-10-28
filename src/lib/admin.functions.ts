@@ -5,6 +5,7 @@ import {
   MAX_VOUCHERS_PER_BATCH,
   PACKAGE_IDS,
   adminPasswordProblem,
+  creditChangeProblem,
   makeVoucherCode,
   normalizeAdminUsername,
   normalizeMac,
@@ -143,7 +144,7 @@ export const getDashboard = createServerFn({ method: "POST" })
   });
 
 const TXN_COLUMNS =
-  "id, phone, mac, package, amount, mpesa_code, status, result_desc, is_mock, checkout_request_id, last_query_at, created_at, updated_at";
+  "id, phone, mac, package, amount, purpose, mpesa_code, status, result_desc, is_mock, checkout_request_id, last_query_at, created_at, updated_at";
 
 /** STK pushes with their payment state and what each one did for the customer's internet. */
 export const listTransactions = createServerFn({ method: "POST" })
@@ -189,6 +190,7 @@ export const listTransactions = createServerFn({ method: "POST" })
         mac: t.mac,
         package: t.package,
         amount: t.amount,
+        purpose: t.purpose,
         mpesa_code: t.mpesa_code,
         status: t.status,
         result_desc: t.result_desc,
@@ -281,4 +283,43 @@ export const unblockMac = createServerFn({ method: "POST" })
     await db.from("blocked_macs").delete().eq("mac", data.mac);
     await router.removeMac(data.mac);
     return { ok: true };
+  });
+
+/** Prepaid customers with their credit and how many subscriptions are running now. */
+export const listCustomers = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    await requireAdmin(data.token);
+    const nowIso = new Date().toISOString();
+    const [{ data: accounts }, { data: subs }] = await Promise.all([
+      db
+        .from("prepaid_accounts")
+        .select("phone, name, credit, net_points, created_at, updated_at")
+        .order("updated_at", { ascending: false })
+        .limit(500),
+      db.from("active_subscriptions").select("phone, package, expiry").eq("status", "active").gt("expiry", nowIso),
+    ]);
+    return (accounts ?? []).map((a) => {
+      const mine = (subs ?? []).filter((s) => s.phone === a.phone);
+      return { ...a, activeSubs: mine.length, latestExpiry: mine.map((s) => s.expiry).sort().at(-1) ?? null };
+    });
+  });
+
+/** Admin adds (positive) or removes (negative) prepaid credit by hand. Creates the account if needed. */
+export const adjustCredit = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ token, phone: z.string().max(20), change: z.number() }).parse(d))
+  .handler(async ({ data }) => {
+    await requireAdmin(data.token);
+    const phone = normalizePhone(data.phone);
+    if (!phone) return { ok: false as const, error: "Invalid phone number" };
+    const change = Math.round(data.change * 100) / 100;
+    const { data: acc } = await db.from("prepaid_accounts").select("credit").eq("phone", phone).maybeSingle();
+    const problem = creditChangeProblem(change, acc?.credit ?? 0);
+    if (problem) return { ok: false as const, error: problem };
+    const { data: credit, error } =
+      change > 0
+        ? await db.rpc("add_credit", { _phone: phone, _amount: change })
+        : await db.rpc("spend_credit", { _phone: phone, _amount: -change });
+    if (error || credit === null || credit === undefined) return { ok: false as const, error: "Could not change credit" };
+    return { ok: true as const, phone, credit };
   });

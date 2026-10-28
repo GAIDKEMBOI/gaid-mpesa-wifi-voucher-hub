@@ -114,6 +114,7 @@ export async function buyFromCredit(
   if (error || left === null || left === undefined)
     return { ok: false, error: "Not enough credit", insufficient: true };
 
+  let newSubId: string | null = null;
   try {
     const now = new Date();
     // Same package already running on this device? Add the time to it.
@@ -145,10 +146,12 @@ export async function buyFromCredit(
       .select("id")
       .single();
     if (subErr || !sub) throw subErr ?? new Error("subscription insert failed");
+    newSubId = sub.id;
     const granted = await attachDevice(sub.id, phone, pkg.id, mac, expiry);
     return { ok: true, expiry: granted.toISOString() };
   } catch (e) {
     console.error("buyFromCredit", e);
+    if (newSubId) await db.from("active_subscriptions").update({ status: "cancelled" }).eq("id", newSubId);
     await db.rpc("add_credit", { _phone: phone, _amount: pkg.price }); // refund
     return { ok: false, error: "Could not start the package. Your credit was not used." };
   }

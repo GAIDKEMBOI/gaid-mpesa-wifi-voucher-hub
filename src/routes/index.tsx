@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, Gift, Loader2, LogOut, RefreshCw, Smartphone, Wifi, XCircle } from "lucide-react";
+import { CheckCircle2, Gift, Loader2, LogOut, Plus, RefreshCw, Smartphone, Wifi, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,10 @@ import {
   FREE_WIFI_START_HOUR,
   OTP_LENGTH,
   PACKAGES,
+  TOPUP_MAX,
+  TOPUP_MIN,
   formatTimeLeft,
+  topUpAmountProblem,
   greeting,
   normalizeMac,
   packageLine,
@@ -23,6 +26,7 @@ import {
   claimFreeWifiNow,
   getMyAccount,
   requestSignInCode,
+  topUpCredit,
   useDeviceSlot,
   verifySignInCode,
 } from "@/lib/customer.functions";
@@ -82,6 +86,7 @@ function Portal() {
   const buyFn = useServerFn(buyPackage);
   const slotFn = useServerFn(useDeviceSlot);
   const freeFn = useServerFn(claimFreeWifiNow);
+  const topUpFn = useServerFn(topUpCredit);
 
   const [hydrated, setHydrated] = useState(false);
   const [mac, setMac] = useState<string | null>(null);
@@ -91,6 +96,8 @@ function Portal() {
   const [stage, setStage] = useState<Stage>("home");
   const [txnId, setTxnId] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState(0);
+  const [creditOnly, setCreditOnly] = useState(false);
+  const [showTopUp, setShowTopUp] = useState(false);
   const [mock, setMock] = useState(false);
   const [failMsg, setFailMsg] = useState("");
   const [deviceExpiry, setDeviceExpiry] = useState<string | null>(null);
@@ -167,9 +174,13 @@ function Portal() {
         if (r.status === "success") {
           stopPolling();
           sessionStorage.removeItem(TXN_KEY);
-          setDeviceExpiry(r.expiry);
           setStage("home");
-          toast.success("Payment received. You are online!");
+          if (r.purpose === "credit") {
+            toast.success("Payment received. It's in your credit. Tap BUY on a package to go online.");
+          } else {
+            setDeviceExpiry(r.expiry);
+            toast.success("Payment received. You are online!");
+          }
           void qc.invalidateQueries({ queryKey: ["account"] });
         } else if (r.status === "failed" || r.status === "cancelled") {
           stopPolling();
@@ -212,11 +223,34 @@ function Portal() {
         void qc.invalidateQueries({ queryKey: ["account"] });
       } else {
         sessionStorage.setItem(TXN_KEY, r.transactionId);
+        setCreditOnly(false);
         setPayAmount(r.amount);
         setMock(r.mock);
         setTxnId(r.transactionId);
         setStage("paying");
       }
+    } catch {
+      toast.error("Network problem. Please try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function topUp(amount: number) {
+    if (!token) return;
+    const problem = topUpAmountProblem(amount);
+    if (problem) return void toast.error(problem);
+    setBusy("topup");
+    try {
+      const r = await topUpFn({ data: { token, amount, mac } });
+      if (!r.ok) return void toast.error(r.error);
+      sessionStorage.setItem(TXN_KEY, r.transactionId);
+      setCreditOnly(true);
+      setPayAmount(r.amount);
+      setMock(r.mock);
+      setTxnId(r.transactionId);
+      setShowTopUp(false);
+      setStage("paying");
     } catch {
       toast.error("Network problem. Please try again.");
     } finally {
@@ -272,8 +306,10 @@ function Portal() {
             </div>
             <h2 className="font-display mt-5 text-3xl">Enter M-Pesa PIN on your phone</h2>
             <p className="mt-2 text-muted-foreground">
-              Pay <strong className="text-foreground">Sh{payAmount || "…"}</strong>. It goes into your credit and your
-              package starts as soon as the payment arrives.
+              Pay <strong className="text-foreground">Sh{payAmount || "…"}</strong>.{" "}
+              {creditOnly
+                ? "It goes into your credit. Then tap BUY on any package."
+                : "It goes into your credit and your package starts as soon as the payment arrives."}
             </p>
             <div className="mt-5 flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Waiting for confirmation…
@@ -361,11 +397,20 @@ function Portal() {
                         <RefreshCw className={cn("h-4 w-4", account.isFetching && "animate-spin")} />
                       </button>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowTopUp((v) => !v)}
+                      aria-expanded={showTopUp}
+                      className="mt-1 flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Top up credit
+                    </button>
                   </div>
                   <div className="border-l border-border pl-3 text-right">
                     <div className="text-xs uppercase tracking-wider text-muted-foreground">Net Points</div>
                     <div className="font-display text-3xl tabular-nums text-primary">{acc.netPoints}</div>
                   </div>
+                  {showTopUp && <TopUp busy={busy === "topup"} onPay={topUp} />}
                 </section>
 
                 <section className="flex items-center gap-3 rounded-2xl bg-primary p-4 text-primary-foreground shadow-glow">
@@ -570,6 +615,47 @@ function SignIn({ onSignedIn }: { onSignedIn: (token: string) => void }) {
         </div>
       )}
     </section>
+  );
+}
+
+function TopUp({ busy, onPay }: { busy: boolean; onPay: (amount: number) => void }) {
+  const [amount, setAmount] = useState("");
+  const n = Number(amount);
+  return (
+    <div className="col-span-2 space-y-2 border-t border-border pt-3">
+      <div className="flex gap-2">
+        {[20, 50, 100].map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setAmount(String(v))}
+            className={cn(
+              "flex-1 rounded-lg border py-1.5 text-sm font-semibold",
+              n === v ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground",
+            )}
+          >
+            Sh{v}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={TOPUP_MIN}
+          max={TOPUP_MAX}
+          placeholder={`Amount (Sh${TOPUP_MIN}+)`}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
+          className="h-11 flex-1 rounded-xl"
+          aria-label="Top-up amount"
+        />
+        <Button variant="hero" className="h-11 w-auto px-4" disabled={busy || !n} onClick={() => onPay(n)}>
+          {busy ? <Loader2 className="animate-spin" /> : "LIPA NA MPESA"}
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">The money goes into your credit. Nothing starts until you tap BUY.</p>
+    </div>
   );
 }
 

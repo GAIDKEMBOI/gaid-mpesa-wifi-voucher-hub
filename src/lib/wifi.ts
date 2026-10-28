@@ -225,3 +225,24 @@ export function greeting(now: Date): string {
 export function packageLine(p: WifiPackage): string {
   return `Sh${p.price} = ${p.label.replace(/ \d+ Devices$/, "")} UnlimiNET - ${p.devices} Device${p.devices > 1 ? "s" : ""}`;
 }
+
+// ---------- Credit top-up (M-Pesa into prepaid credit only) ----------
+
+export const TOPUP_MIN = 5; // KES
+export const TOPUP_MAX = 10_000; // KES
+
+/** Reason a credit top-up amount is not allowed, or null when it is fine. Whole shillings only. */
+export function topUpAmountProblem(amount: number): string | null {
+  if (!Number.isInteger(amount)) return "Use whole shillings";
+  if (amount < TOPUP_MIN) return `Top up at least Sh${TOPUP_MIN}`;
+  if (amount > TOPUP_MAX) return `Top up at most Sh${TOPUP_MAX.toLocaleString("en-KE")}`;
+  return null;
+}
+
+/** Admin credit change: positive adds, negative removes; never more than the customer has. */
+export function creditChangeProblem(change: number, currentCredit: number): string | null {
+  if (!Number.isFinite(change) || change === 0) return "Enter an amount";
+  if (Math.abs(change) > 100_000) return "Amount is too large";
+  if (change < 0 && -change > currentCredit) return "Customer does not have that much credit";
+  return null;
+}
