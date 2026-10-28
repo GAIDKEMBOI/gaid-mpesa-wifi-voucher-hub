@@ -88,7 +88,8 @@ export async function disconnectMac(mac: string) {
 /**
  * Pending -> success exactly once.
  * "package" payments (old flow) grant access directly; "topup" payments add the money to the
- * customer's prepaid credit, then buy the chosen package from that credit.
+ * customer's prepaid credit, then buy the chosen package from that credit; "credit" payments
+ * only add to credit.
  */
 export async function finalizeSuccess(txnId: string, mpesaCode: string | null) {
   const { data } = await db
@@ -104,6 +105,12 @@ export async function finalizeSuccess(txnId: string, mpesaCode: string | null) {
     .select("*")
     .maybeSingle();
   if (!data) return; // already handled
+  if (data.purpose === "credit") {
+    // Plain top-up: money goes into prepaid credit only; nothing is switched on.
+    const { error } = await db.rpc("add_credit", { _phone: data.phone, _amount: data.amount });
+    if (error) console.error("add_credit", error);
+    return;
+  }
   if (data.purpose === "topup") {
     const { error } = await db.rpc("add_credit", { _phone: data.phone, _amount: data.amount });
     if (error) {

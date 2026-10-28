@@ -1,7 +1,7 @@
 // Customer (prepaid account) server functions for the captive portal.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { PACKAGE_IDS, getPackage, normalizeMac, normalizePhone, topUpShortfall, OTP_LENGTH } from "@/lib/wifi";
+import { PACKAGE_IDS, getPackage, normalizeMac, normalizePhone, topUpAmountProblem, topUpShortfall, OTP_LENGTH } from "@/lib/wifi";
 
 const token = z.string().max(600);
 const mac = z
@@ -94,4 +94,25 @@ export const claimFreeWifiNow = createServerFn({ method: "POST" })
     const { requireCustomer, claimFreeWifi } = await import("@/lib/prepaid.server");
     const account = await requireCustomer(data.token);
     return claimFreeWifi(account.phone, data.mac);
+  });
+
+/** Top up credit by M-Pesa. The money only goes into credit; the customer then taps BUY. */
+export const topUpCredit = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ token, amount: z.number(), mac: mac.nullable() }).parse(d))
+  .handler(async ({ data }) => {
+    const problem = topUpAmountProblem(data.amount);
+    if (problem) return { ok: false as const, error: problem };
+    const { requireCustomer } = await import("@/lib/prepaid.server");
+    const { startStkPayment } = await import("@/lib/payments.server");
+    const account = await requireCustomer(data.token);
+    const r = await startStkPayment({
+      phone: account.phone,
+      mac: data.mac || "-",
+      packageId: "credit",
+      amount: data.amount,
+      purpose: "credit",
+      description: "WiFi credit",
+    });
+    if (!r.ok) return { ok: false as const, error: r.error };
+    return { ok: true as const, transactionId: r.transactionId, amount: data.amount, mock: r.mock };
   });

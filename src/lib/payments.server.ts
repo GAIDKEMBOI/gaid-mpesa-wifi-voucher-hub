@@ -48,7 +48,7 @@ export async function startStkPayment(input: {
   mac: string;
   packageId: string;
   amount: number;
-  purpose: "package" | "topup";
+  purpose: "package" | "topup" | "credit";
   description: string;
 }): Promise<{ ok: true; transactionId: string; mock: boolean } | { ok: false; error: string }> {
   const cfg = getMpesaConfig();
@@ -72,7 +72,7 @@ export async function startStkPayment(input: {
     return { ok: false, error: "Could not start payment. Try again." };
   }
   if (cfg) {
-    const base = process.env["MPESA_CALLBACK_BASE_URL"] || new URL(getRequest().url).origin;
+    const base = callbackBase();
     try {
       const r = await stkPush(cfg, {
         phone: input.phone,
@@ -92,4 +92,17 @@ export async function startStkPayment(input: {
     }
   }
   return { ok: true, transactionId: txn.id, mock: !cfg };
+}
+
+// Safaricom must reach the callback over public https. The test copy (localhost / editor preview)
+// isn't reachable, so it uses the published site, which shares the same database.
+const PUBLISHED_URL = "https://gaid-mpesa-wifi-voucher-hub.lovable.app";
+
+function callbackBase(): string {
+  const set = process.env["MPESA_CALLBACK_BASE_URL"]?.trim();
+  if (set) return set;
+  const url = new URL(getRequest().url);
+  const unreachable =
+    url.protocol !== "https:" || /^(localhost|127\.|10\.|192\.168\.)|id-preview--|lovableproject\.com$/.test(url.hostname);
+  return unreachable ? PUBLISHED_URL : url.origin;
 }
