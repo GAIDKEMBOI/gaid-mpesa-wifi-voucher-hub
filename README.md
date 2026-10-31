@@ -1,6 +1,6 @@
 # Gaid WiFi Billing system 
 
-Build me a WiFi Billing System for Kenyan WISP like AMAZONS, called BRADY WIFI.
+Build me a WiFi Billing System for Kenyan WISP like AMAZONS, called GAID WIFI SERVICES 
 
 
 
