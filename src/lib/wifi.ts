@@ -313,10 +313,5 @@ export function creditChangeProblem(change: number, currentCredit: number): stri
 // --- Compatibility exports for old imports (fix build) ---
 export const PACKAGES = STARTING_PACKAGES;
 export const getPackage = findPackage;
-export const FREE_WIFI_START_HOUR = 6;
-export const FREE_WIFI_END_HOUR = 18;
-export const FREE_WIFI_MINUTES = 30;
-export function isFreeWifiTime(date = new Date()) {
-  const h = date.getHours();
-  return h >= FREE_WIFI_START_HOUR && h < FREE_WIFI_END_HOUR;
+
 }
