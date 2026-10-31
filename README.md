@@ -110,3 +110,9 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+{
+  "build": {
+    "command": "npm run build",
+    "outputDir": ".output/public"
+  }
+}
