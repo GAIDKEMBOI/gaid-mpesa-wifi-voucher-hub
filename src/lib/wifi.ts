@@ -313,5 +313,4 @@ export function creditChangeProblem(change: number, currentCredit: number): stri
 // --- Compatibility exports for old imports (fix build) ---
 export const PACKAGES = STARTING_PACKAGES;
 export const getPackage = findPackage;
-
-
+export const PACKAGE_IDS = STARTING_PACKAGES.map(p => p.id);
