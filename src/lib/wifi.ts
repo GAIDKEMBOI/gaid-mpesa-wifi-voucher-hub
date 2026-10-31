@@ -314,4 +314,4 @@ export function creditChangeProblem(change: number, currentCredit: number): stri
 export const PACKAGES = STARTING_PACKAGES;
 export const getPackage = findPackage;
 
-}
+
