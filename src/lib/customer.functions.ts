@@ -1,7 +1,7 @@
 // Customer (prepaid account) server functions for the captive portal.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { PACKAGE_IDS, getPackage, normalizeMac, normalizePhone, topUpAmountProblem, topUpShortfall, OTP_LENGTH } from "@/lib/wifi";
+import { PACKAGE_ID_MAX, normalizeMac, normalizePhone, topUpAmountProblem, topUpShortfall, OTP_LENGTH } from "@/lib/wifi";
 
 const token = z.string().max(600);
 const mac = z
@@ -52,12 +52,14 @@ export const getMyAccount = createServerFn({ method: "POST" })
 
 /** BUY: pays from credit; if credit is short, sends an M-Pesa prompt for the missing amount only. */
 export const buyPackage = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ token, mac, packageId: z.enum(PACKAGE_IDS) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ token, mac, packageId: z.string().min(1).max(PACKAGE_ID_MAX) }).parse(d))
   .handler(async ({ data }) => {
     const { requireCustomer, buyFromCredit } = await import("@/lib/prepaid.server");
     const { isBlocked } = await import("@/lib/access.server");
+    const { findStoredPackage } = await import("@/lib/packages.server");
     const account = await requireCustomer(data.token);
-    const pkg = getPackage(data.packageId)!;
+    const pkg = await findStoredPackage(data.packageId, "sale");
+    if (!pkg) return { ok: false as const, error: "This package is no longer available. Refresh the page." };
     if (await isBlocked(data.mac)) return { ok: false as const, error: "This device is blocked. Contact the admin." };
 
     const short = topUpShortfall(pkg.price, account.credit);

@@ -1,9 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { PACKAGE_IDS, getPackage, normalizeMac, normalizePhone, normalizeVoucher } from "@/lib/wifi";
+import { PACKAGE_ID_MAX, normalizeMac, normalizePhone, normalizeVoucher } from "@/lib/wifi";
 import { activateAccess, db, getActiveSession, isBlocked } from "@/lib/access.server";
 import { mpesaMode } from "@/lib/mpesa.server";
 import { refreshPendingTransaction, startStkPayment } from "@/lib/payments.server";
+import { findStoredPackage, listPackagesOnSale } from "@/lib/packages.server";
 
 const macSchema = z
   .string()
@@ -16,6 +17,11 @@ const macSchema = z
 
 export const getPortalInfo = createServerFn({ method: "GET" }).handler(async () => {
   return { mpesaMode: mpesaMode() };
+});
+
+/** Packages customers can buy right now (admin-managed). */
+export const getPortalPackages = createServerFn({ method: "GET" }).handler(async () => {
+  return listPackagesOnSale();
 });
 
 export const getAccessStatus = createServerFn({ method: "POST" })
@@ -34,13 +40,14 @@ export const getAccessStatus = createServerFn({ method: "POST" })
 export const startPayment = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z
-      .object({ phone: z.string().max(20), mac: macSchema, packageId: z.enum(PACKAGE_IDS) })
+      .object({ phone: z.string().max(20), mac: macSchema, packageId: z.string().min(1).max(PACKAGE_ID_MAX) })
       .parse(d),
   )
   .handler(async ({ data }) => {
     const phone = normalizePhone(data.phone);
     if (!phone) return { ok: false as const, error: "Enter a valid Safaricom number, e.g. 0712345678" };
-    const pkg = getPackage(data.packageId)!;
+    const pkg = await findStoredPackage(data.packageId, "sale");
+    if (!pkg) return { ok: false as const, error: "This package is no longer available. Refresh the page." };
     if (await isBlocked(data.mac)) return { ok: false as const, error: "This device is blocked. Contact the admin." };
 
     return startStkPayment({
