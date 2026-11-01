@@ -3,13 +3,15 @@ import { z } from "zod";
 import {
   LOGIN_LOCK_MINUTES,
   MAX_VOUCHERS_PER_BATCH,
-  PACKAGE_IDS,
+  PACKAGE_ID_MAX,
   adminPasswordProblem,
   creditChangeProblem,
   makeVoucherCode,
+  newPackageId,
   normalizeAdminUsername,
   normalizeMac,
   normalizePhone,
+  packageProblem,
   startOfKenyaDay,
 } from "@/lib/wifi";
 import {
@@ -29,6 +31,7 @@ import {
 import { router, routerMode } from "@/lib/mikrotik.server";
 import { mpesaMissingKeys, mpesaMode } from "@/lib/mpesa.server";
 import { refreshPendingTransaction } from "@/lib/payments.server";
+import { findStoredPackage, listAllPackages } from "@/lib/packages.server";
 
 const token = z.string().max(500);
 const mac = z
@@ -225,16 +228,19 @@ export const disconnectUser = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+const packageId = z.string().min(1).max(PACKAGE_ID_MAX);
+
 export const addUserManual = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z
-      .object({ token, mac, phone: z.string().max(20).optional(), packageId: z.enum(PACKAGE_IDS) })
+      .object({ token, mac, phone: z.string().max(20).optional(), packageId })
       .parse(d),
   )
   .handler(async ({ data }) => {
     await requireAdmin(data.token);
     const phone = data.phone ? normalizePhone(data.phone) : null;
     if (data.phone && !phone) return { ok: false as const, error: "Invalid phone number" };
+    if (!(await findStoredPackage(data.packageId, "admin"))) return { ok: false as const, error: "Choose a package" };
     await db.from("blocked_macs").delete().eq("mac", data.mac);
     const expiry = await activateAccess({ mac: data.mac, phone, packageId: data.packageId, source: "manual" });
     return { ok: true as const, expiry: expiry.toISOString() };
@@ -245,13 +251,14 @@ export const generateVouchers = createServerFn({ method: "POST" })
     z
       .object({
         token,
-        packageId: z.enum(PACKAGE_IDS),
+        packageId,
         count: z.number().int().min(1).max(MAX_VOUCHERS_PER_BATCH),
       })
       .parse(d),
   )
   .handler(async ({ data }) => {
     await requireAdmin(data.token);
+    if (!(await findStoredPackage(data.packageId, "admin"))) return { ok: false as const, error: "Choose a package" };
     const batch = `B${Date.now().toString(36).toUpperCase()}`;
     const codes = new Set<string>();
     while (codes.size < data.count) {
@@ -264,6 +271,99 @@ export const generateVouchers = createServerFn({ method: "POST" })
       return { ok: false as const, error: "Could not create vouchers" };
     }
     return { ok: true as const, batch, codes: [...codes] };
+  });
+
+// ---------- Packages (admin-managed list customers buy from) ----------
+
+/** All packages, removed ones included (the admin can bring them back). */
+export const listAdminPackages = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    await requireAdmin(data.token);
+    return listAllPackages();
+  });
+
+/** Creates a package (id null) or edits one. Price/time changes apply to new purchases only. */
+export const savePackage = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        token,
+        id: packageId.nullable(),
+        label: z.string().max(60),
+        price: z.number(),
+        minutes: z.number(),
+        devices: z.number(),
+        speedMbps: z.number().nullable(),
+        visible: z.boolean(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    await requireAdmin(data.token);
+    const input = {
+      label: data.label.trim().replace(/\s+/g, " "),
+      price: data.price,
+      minutes: data.minutes,
+      devices: data.devices,
+      speedMbps: data.speedMbps,
+    };
+    const problem = packageProblem(input);
+    if (problem) return { ok: false as const, error: problem };
+    const row = {
+      label: input.label,
+      price: input.price,
+      minutes: input.minutes,
+      devices: input.devices,
+      speed_mbps: input.speedMbps,
+      visible: data.visible,
+      updated_at: new Date().toISOString(),
+    };
+    if (data.id) {
+      const { data: updated, error } = await db
+        .from("wifi_packages")
+        .update(row)
+        .eq("id", data.id)
+        .eq("removed", false)
+        .select("id")
+        .maybeSingle();
+      if (error || !updated) return { ok: false as const, error: "Could not save. The package may have been removed." };
+      return { ok: true as const, id: updated.id };
+    }
+    const { data: existing } = await db.from("wifi_packages").select("id, sort_order");
+    const id = newPackageId(input.label, (existing ?? []).map((p) => p.id));
+    const sortOrder = Math.max(0, ...(existing ?? []).map((p) => p.sort_order)) + 10;
+    const { error } = await db.from("wifi_packages").insert({ id, ...row, sort_order: sortOrder });
+    if (error) {
+      console.error(error);
+      return { ok: false as const, error: "Could not create the package" };
+    }
+    return { ok: true as const, id };
+  });
+
+/** Hide/show on the portal, or remove/restore. Removed packages are kept so old records keep their names. */
+export const setPackageState = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({ token, id: packageId, action: z.enum(["show", "hide", "remove", "restore"]) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    await requireAdmin(data.token);
+    const change =
+      data.action === "show"
+        ? { visible: true }
+        : data.action === "hide"
+          ? { visible: false }
+          : data.action === "remove"
+            ? { removed: true, visible: false }
+            : { removed: false, visible: false };
+    const { data: updated, error } = await db
+      .from("wifi_packages")
+      .update({ ...change, updated_at: new Date().toISOString() })
+      .eq("id", data.id)
+      .select("id")
+      .maybeSingle();
+    if (error || !updated) return { ok: false as const, error: "Package not found" };
+    return { ok: true as const };
   });
 
 export const blockMac = createServerFn({ method: "POST" })
