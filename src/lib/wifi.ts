@@ -310,7 +310,9 @@ export function creditChangeProblem(change: number, currentCredit: number): stri
   if (change < 0 && -change > currentCredit) return "Customer does not have that much credit";
   return null;
 }
-// --- Compatibility exports for old imports (fix build) ---
+// --- Fixed package list used by the app until the admin Packages tab is finished ---
 export const PACKAGES = STARTING_PACKAGES;
-export const getPackage = findPackage;
-export const PACKAGE_IDS = STARTING_PACKAGES.map(p => p.id);
+export function getPackage(id: string): WifiPackage | undefined {
+  return findPackage(STARTING_PACKAGES, id);
+}
+export const PACKAGE_IDS = STARTING_PACKAGES.map((p) => p.id) as [string, ...string[]];
