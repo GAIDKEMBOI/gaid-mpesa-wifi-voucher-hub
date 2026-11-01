@@ -9,8 +9,9 @@ export const Route = createFileRoute("/api/buy-package")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { PACKAGE_IDS, getPackage, normalizeMac, topUpShortfall } = await import("@/lib/wifi");
+        const { PACKAGE_ID_MAX, normalizeMac, topUpShortfall } = await import("@/lib/wifi");
         const { requireCustomer, buyFromCredit } = await import("@/lib/prepaid.server");
+        const { findStoredPackage } = await import("@/lib/packages.server");
         const auth = request.headers.get("authorization") ?? "";
         let account;
         try {
@@ -19,11 +20,12 @@ export const Route = createFileRoute("/api/buy-package")({
           return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         }
         const parsed = z
-          .object({ packageId: z.enum(PACKAGE_IDS), mac: z.string().max(40) })
+          .object({ packageId: z.string().min(1).max(PACKAGE_ID_MAX), mac: z.string().max(40) })
           .safeParse(await request.json().catch(() => null));
         const mac = parsed.success ? normalizeMac(parsed.data.mac) : null;
         if (!parsed.success || !mac) return Response.json({ ok: false, error: "Send packageId and mac" }, { status: 400 });
-        const pkg = getPackage(parsed.data.packageId)!;
+        const pkg = await findStoredPackage(parsed.data.packageId, "sale");
+        if (!pkg) return Response.json({ ok: false, error: "Unknown package" }, { status: 404 });
         const short = topUpShortfall(pkg.price, account.credit);
         if (short > 0) return Response.json({ ok: false, error: "Not enough credit", topUpNeeded: short }, { status: 402 });
         const r = await buyFromCredit(account.phone, pkg, mac);

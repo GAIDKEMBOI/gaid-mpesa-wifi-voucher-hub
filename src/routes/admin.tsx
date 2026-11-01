@@ -1,25 +1,27 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { Ban, CheckCircle2, Clock, Copy, Download, Eye, EyeOff, Loader2, LogOut, Plus, Printer, RefreshCw, ShieldCheck, Smartphone, Users, Wallet, Wifi, WifiOff, XCircle } from "lucide-react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { Ban, CheckCircle2, Clock, Copy, Download, Eye, EyeOff, Loader2, LogOut, Pencil, Plus, Printer, RefreshCw, RotateCcw, ShieldCheck, Smartphone, Trash2, Users, Wallet, Wifi, WifiOff, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ADMIN_PASSWORD_MIN_LENGTH,
+  DURATION_UNIT_MINUTES,
   LOGIN_LOCK_MINUTES,
   LOGIN_MAX_FAILS_PER_DEVICE,
-  PACKAGES,
   PAYMENT_TIMEOUT_MS,
+  packageLine,
+  packageProblem,
   paymentAccess,
   paymentState,
+  splitDuration,
+  type DurationUnit,
   type PaymentState,
   adminPasswordProblem,
   formatTimeLeft,
-  getPackage,
-  type PackageId,
 } from "@/lib/wifi";
 import {
   addUserManual,
@@ -31,13 +33,35 @@ import {
   generateVouchers,
   getAdminStatus,
   getDashboard,
+  listAdminPackages,
   listCustomers,
   listTransactions,
   listVouchers,
+  savePackage,
+  setPackageState,
   setupAdmin,
   unblockMac,
 } from "@/lib/admin.functions";
 import { cn } from "@/lib/utils";
+
+type AdminPackage = {
+  id: string;
+  label: string;
+  price: number;
+  minutes: number;
+  devices: number;
+  speedMbps?: number | null | undefined;
+  visible: boolean;
+  removed: boolean;
+};
+
+/** The admin's package list, shared by every tab (names on old records, package pickers). */
+const PackagesCtx = createContext<AdminPackage[]>([]);
+
+function usePkgLabel() {
+  const list = useContext(PackagesCtx);
+  return (id: string) => list.find((p) => p.id === id)?.label ?? id;
+}
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -309,6 +333,9 @@ function Dashboard({ token, onToken, onLogout }: { token: string; onToken: (t: s
     refetchInterval: (q) => (q.state.data?.some((t) => t.status === "pending") ? 4000 : 15000),
   });
   const vouchers = useQuery({ queryKey: ["vouchers", token], queryFn: () => vFn({ data: { token } }) });
+  const pkgFn = useServerFn(listAdminPackages);
+  const packages = useQuery({ queryKey: ["packages", token], queryFn: () => pkgFn({ data: { token } }) });
+  const pkgLabel = (id: string) => packages.data?.find((p) => p.id === id)?.label ?? id;
 
   useEffect(() => {
     if (dash.error) handleAuthError(dash.error, onLogout);
@@ -329,6 +356,7 @@ function Dashboard({ token, onToken, onLogout }: { token: string; onToken: (t: s
   const d = dash.data;
 
   return (
+    <PackagesCtx.Provider value={packages.data ?? []}>
     <main className="min-h-dvh bg-background">
       <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
@@ -377,6 +405,7 @@ function Dashboard({ token, onToken, onLogout }: { token: string; onToken: (t: s
           <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted p-1">
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="customers">Customers</TabsTrigger>
+            <TabsTrigger value="packages">Packages</TabsTrigger>
             <TabsTrigger value="add">Add user</TabsTrigger>
             <TabsTrigger value="vouchers">Vouchers</TabsTrigger>
             <TabsTrigger value="mpesa">M-Pesa</TabsTrigger>
@@ -386,6 +415,10 @@ function Dashboard({ token, onToken, onLogout }: { token: string; onToken: (t: s
 
           <TabsContent value="customers">
             <CustomersPanel token={token} now={now} onLogout={onLogout} />
+          </TabsContent>
+
+          <TabsContent value="packages">
+            <PackagesPanel token={token} loading={packages.isLoading} onLogout={onLogout} />
           </TabsContent>
 
           <TabsContent value="users">
@@ -408,7 +441,7 @@ function Dashboard({ token, onToken, onLogout }: { token: string; onToken: (t: s
                     <tr key={u.id} className="border-t border-border">
                       <Td>{u.phone ?? <span className="text-muted-foreground">{u.source}</span>}</Td>
                       <Td className="font-mono text-xs">{u.mac}</Td>
-                      <Td>{getPackage(u.package)?.label ?? u.package}</Td>
+                      <Td>{u.package === "free" ? "Free WiFi" : pkgLabel(u.package)}</Td>
                       <Td className="tabular-nums">{live ? formatTimeLeft(left) : "—"}</Td>
                       <Td>
                         <StatusPill status={live ? "active" : u.status === "active" ? "expired" : u.status} />
@@ -465,6 +498,7 @@ function Dashboard({ token, onToken, onLogout }: { token: string; onToken: (t: s
         </Tabs>
       </div>
     </main>
+    </PackagesCtx.Provider>
   );
 }
 
@@ -526,10 +560,17 @@ function StatusPill({ status, title }: { status: string; title?: string | undefi
   );
 }
 
-function PackageSelect({ value, onChange }: { value: PackageId; onChange: (v: PackageId) => void }) {
+function PackageSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const list = useContext(PackagesCtx).filter((p) => !p.removed);
+  // Pick the first package when nothing (or a since-removed package) is selected.
+  useEffect(() => {
+    const first = list[0];
+    if (first && !list.some((p) => p.id === value)) onChange(first.id);
+  }, [list, value, onChange]);
+  if (list.length === 0) return <p className="text-sm text-muted-foreground">No packages yet. Add one in the Packages tab.</p>;
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {PACKAGES.map((p) => (
+      {list.map((p) => (
         <button
           key={p.id}
           type="button"
@@ -540,7 +581,10 @@ function PackageSelect({ value, onChange }: { value: PackageId; onChange: (v: Pa
           )}
         >
           <div className="font-semibold">{p.label}</div>
-          <div className="text-xs text-muted-foreground">KES {p.price}</div>
+          <div className="text-xs text-muted-foreground">
+            KES {p.price}
+            {!p.visible && " · hidden"}
+          </div>
         </button>
       ))}
     </div>
@@ -551,7 +595,7 @@ function AddUser({ token, onDone, onLogout }: { token: string; onDone: () => voi
   const addFn = useServerFn(addUserManual);
   const [mac, setMac] = useState("");
   const [phone, setPhone] = useState("");
-  const [pkg, setPkg] = useState<PackageId>("1h");
+  const [pkg, setPkg] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -579,7 +623,7 @@ function AddUser({ token, onDone, onLogout }: { token: string; onDone: () => voi
         <Input placeholder="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} className="h-11" />
       </div>
       <PackageSelect value={pkg} onChange={setPkg} />
-      <Button type="submit" disabled={busy || mac.length < 12}>
+      <Button type="submit" disabled={busy || mac.length < 12 || !pkg}>
         {busy ? <Loader2 className="animate-spin" /> : <Plus />} Add user
       </Button>
     </form>
@@ -600,10 +644,11 @@ function VoucherPanel({
   onLogout: () => void;
 }) {
   const genFn = useServerFn(generateVouchers);
-  const [pkg, setPkg] = useState<PackageId>("1h");
+  const pkgLabel = usePkgLabel();
+  const [pkg, setPkg] = useState("");
   const [count, setCount] = useState("100");
   const [busy, setBusy] = useState(false);
-  const [fresh, setFresh] = useState<{ codes: string[]; pkg: PackageId } | null>(null);
+  const [fresh, setFresh] = useState<{ codes: string[]; pkg: string } | null>(null);
   const unused = useMemo(() => vouchers.filter((v) => !v.used).length, [vouchers]);
 
   async function generate() {
@@ -639,7 +684,7 @@ function VoucherPanel({
         <PackageSelect value={pkg} onChange={setPkg} />
         <div className="flex gap-2">
           <Input type="number" min={1} max={500} value={count} onChange={(e) => setCount(e.target.value)} className="h-10 w-28" />
-          <Button onClick={generate} disabled={busy}>
+          <Button onClick={generate} disabled={busy || !pkg}>
             {busy ? <Loader2 className="animate-spin" /> : <Plus />} Generate codes
           </Button>
         </div>
@@ -652,7 +697,7 @@ function VoucherPanel({
         <div className="rounded-2xl border border-primary bg-card p-4">
           <div className="mb-3 flex flex-wrap items-center gap-2 print:hidden">
             <strong className="mr-auto">
-              {fresh.codes.length} × {getPackage(fresh.pkg)?.label}
+              {fresh.codes.length} × {pkgLabel(fresh.pkg)}
             </strong>
             <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(fresh.codes.join("\n")).then(() => toast.success("Copied"))}>
               <Copy /> Copy
@@ -667,7 +712,7 @@ function VoucherPanel({
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
             {fresh.codes.map((c) => (
               <div key={c} className="rounded-lg border border-dashed border-border p-2 text-center">
-                <div className="font-display text-xs text-primary">GAID WIFI SERVICES · {getPackage(fresh.pkg)?.label}</div>
+                <div className="font-display text-xs text-primary">GAID WIFI SERVICES · {pkgLabel(fresh.pkg)}</div>
                 <div className="font-mono text-lg tracking-widest">{c}</div>
               </div>
             ))}
@@ -690,7 +735,7 @@ function VoucherPanel({
             {vouchers.slice(0, 300).map((v) => (
               <tr key={v.id} className="border-t border-border">
                 <Td className="font-mono">{v.code}</Td>
-                <Td>{getPackage(v.package)?.label ?? v.package}</Td>
+                <Td>{pkgLabel(v.package)}</Td>
                 <Td>
                   <StatusPill status={v.used ? "used" : "active"} />
                 </Td>
@@ -844,6 +889,7 @@ function PaymentStatusPanel({ txs, mode, now }: { txs: Txn[] | undefined; mode: 
 }
 
 function PaymentCard({ t, now }: { t: Txn; now: number }) {
+  const pkgLabel = usePkgLabel();
   const state = paymentState(t.status);
   const creditOnly = t.purpose === "credit";
   const access = paymentAccess(t.status, t.accessUntil ? new Date(t.accessUntil) : null, new Date(now), t.stillActive);
@@ -869,7 +915,7 @@ function PaymentCard({ t, now }: { t: Txn; now: number }) {
         <div className="min-w-0">
           <div className="font-semibold">
             {t.phone} · <span className="text-primary">KES {t.amount}</span> ·{" "}
-            {creditOnly ? "Credit top-up" : (getPackage(t.package)?.label ?? t.package)}
+            {creditOnly ? "Credit top-up" : pkgLabel(t.package)}
           </div>
           <div className="mt-0.5 text-xs text-muted-foreground">
             {fmtTime(t.created_at)}
@@ -933,7 +979,7 @@ function PaymentCard({ t, now }: { t: Txn; now: number }) {
           {!creditOnly && access === "not_activated" && (
             <>
               <strong className="text-destructive">Paid, but internet was not turned on for this device.</strong> Use "Add
-              user" with MAC <span className="font-mono">{t.mac}</span> to give the customer their {getPackage(t.package)?.label ?? t.package}.
+              user" with MAC <span className="font-mono">{t.mac}</span> to give the customer their {pkgLabel(t.package)}.
             </>
           )}
           {access === "none" && (

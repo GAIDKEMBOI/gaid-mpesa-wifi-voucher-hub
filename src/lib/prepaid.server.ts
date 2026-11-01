@@ -9,13 +9,13 @@ import {
   OTP_TTL_MINUTES,
   computeExpiry,
   freeWifiEndsAt,
-  getPackage,
   hasFreeSlot,
   isFreeWifiTime,
   kenyaDay,
   type WifiPackage,
 } from "@/lib/wifi";
 import { db, getActiveSession, grantUntil, isBlocked, keyedHash, safeEqual, signToken, verifyToken } from "@/lib/access.server";
+import { packageLabels } from "@/lib/packages.server";
 import { sendSms, smsMode } from "@/lib/sms.server";
 
 const CUSTOMER_SESSION_MS = 30 * 86400_000;
@@ -199,7 +199,7 @@ export async function claimFreeWifi(phone: string, mac: string) {
 
 export async function accountOverview(phone: string, mac: string | null) {
   const now = new Date();
-  const [{ data: account }, { data: subs }, freeClaim, session] = await Promise.all([
+  const [{ data: account }, { data: subs }, freeClaim, session, labels] = await Promise.all([
     db.from("prepaid_accounts").select("phone, name, credit, net_points").eq("phone", phone).single(),
     db
       .from("active_subscriptions")
@@ -210,6 +210,7 @@ export async function accountOverview(phone: string, mac: string | null) {
       .order("expiry", { ascending: false }),
     db.from("free_wifi_claims").select("day").eq("phone", phone).eq("day", kenyaDay(now)).maybeSingle(),
     mac ? getActiveSession(mac) : Promise.resolve(null),
+    packageLabels(),
   ]);
   return {
     phone,
@@ -221,7 +222,7 @@ export async function accountOverview(phone: string, mac: string | null) {
       return {
         id: s.id,
         package: s.package,
-        label: s.package === "free" ? "Free WiFi Kila Siku" : (getPackage(s.package)?.label ?? s.package),
+        label: s.package === "free" ? "Free WiFi Kila Siku" : (labels[s.package] ?? s.package),
         slots: s.devices,
         used: macs.length,
         thisDevice: mac ? macs.includes(mac) : false,

@@ -65,6 +65,9 @@ export function packageProblem(p: PackageInput): string | null {
   return null;
 }
 
+/** Ids the app already uses for other things (free WiFi sessions, credit-only top-ups). */
+export const RESERVED_PACKAGE_IDS = ["free", "credit"];
+
 /** Short id for a new package from its name, unique among existing ids (e.g. "2 Hours Promo" -> "2-hours-promo"). */
 export function newPackageId(label: string, existing: string[]): string {
   const base =
@@ -74,8 +77,8 @@ export function newPackageId(label: string, existing: string[]): string {
       .replace(/^-+|-+$/g, "")
       .slice(0, 30)
       .replace(/-+$/g, "") || "pkg";
-  const taken = new Set(existing);
-  if (!taken.has(base) && base !== "free") return base;
+  const taken = new Set([...existing, ...RESERVED_PACKAGE_IDS]);
+  if (!taken.has(base)) return base;
   for (let i = 2; ; i++) {
     const id = `${base}-${i}`;
     if (!taken.has(id)) return id;
@@ -310,9 +313,3 @@ export function creditChangeProblem(change: number, currentCredit: number): stri
   if (change < 0 && -change > currentCredit) return "Customer does not have that much credit";
   return null;
 }
-// --- Fixed package list used by the app until the admin Packages tab is finished ---
-export const PACKAGES = STARTING_PACKAGES;
-export function getPackage(id: string): WifiPackage | undefined {
-  return findPackage(STARTING_PACKAGES, id);
-}
-export const PACKAGE_IDS = STARTING_PACKAGES.map((p) => p.id) as [string, ...string[]];
