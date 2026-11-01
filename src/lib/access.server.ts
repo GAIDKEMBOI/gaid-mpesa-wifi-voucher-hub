@@ -1,7 +1,8 @@
 import { getRequestHeader, getRequestIP } from "@tanstack/react-start/server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { LOGIN_LOCK_MINUTES, computeExpiry, getPackage, isLoginLocked } from "@/lib/wifi";
+import { LOGIN_LOCK_MINUTES, computeExpiry, isLoginLocked } from "@/lib/wifi";
 import { router } from "@/lib/mikrotik.server";
+import { findStoredPackage } from "@/lib/packages.server";
 
 export const db = supabaseAdmin;
 
@@ -23,14 +24,18 @@ export async function getActiveSession(mac: string) {
   return data;
 }
 
-/** Adds the MAC to the allowed list, extending any time the customer still has. */
+/**
+ * Adds the MAC to the allowed list, extending any time the customer still has.
+ * Callers check the package may be sold/handed out; here even a since-removed package is honoured
+ * (the customer already paid or holds a voucher for it).
+ */
 export async function activateAccess(input: {
   mac: string;
   phone: string | null;
   packageId: string;
   source: "mpesa" | "voucher" | "manual";
 }): Promise<Date> {
-  const pkg = getPackage(input.packageId);
+  const pkg = await findStoredPackage(input.packageId, "any");
   if (!pkg) throw new Error("Unknown package");
   const now = new Date();
   const current = await getActiveSession(input.mac);
@@ -118,7 +123,7 @@ export async function finalizeSuccess(txnId: string, mpesaCode: string | null) {
       console.error("add_credit", error);
       return;
     }
-    const pkg = getPackage(data.package);
+    const pkg = await findStoredPackage(data.package, "any");
     if (!pkg) return;
     const { buyFromCredit } = await import("@/lib/prepaid.server");
     const r = await buyFromCredit(data.phone, pkg, data.mac);
