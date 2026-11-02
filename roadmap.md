@@ -9,7 +9,7 @@
 - [x] Secure admin login: one-time setup code, strong password, lockout, change password
 - [x] M-Pesa Daraja sandbox (test) mode with user's sandbox keys; published
 - [x] Live mode for Till 5813215 (store 9040342, Buy Goods); published
-- [ ] Admin Packages tab: create/edit/remove packages from the database (packages table exists; app still uses fixed list)
+- [x] Admin Packages tab: create/edit/hide/remove/restore packages; portal, BUY, payments and vouchers read them from the database
 - [x] Admin payment status panel: each STK push pending/successful/failed + when internet turned on
 - [x] AMAZONS-style portal redesign: customer sign-in, greeting, prepaid credit + net points box, free WiFi banner, active subscriptions with timer, voucher box, offers filter (1 / 2+ devices), BUY from credit
 - [x] Prepaid credit backend: prepaid_accounts + active_subscriptions tables, M-Pesa payment adds credit (no auto-activate), buy deducts credit, add-credit and buy-package endpoints
