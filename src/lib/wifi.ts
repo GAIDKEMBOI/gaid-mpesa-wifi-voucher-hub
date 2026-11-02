@@ -313,8 +313,3 @@ export function creditChangeProblem(change: number, currentCredit: number): stri
   if (change < 0 && -change > currentCredit) return "Customer does not have that much credit";
   return null;
 }
-// FIX FOR BUILD - Export names expected by index.tsx
-export const PACKAGES = STARTING_PACKAGES;
-export const FREE_WIFI_START_HOUR = 6;
-export const FREE_WIFI_END_HOUR = 18;
-export const OTP_LENGTH = 6;
