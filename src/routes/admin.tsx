@@ -1284,7 +1284,9 @@ function PackagesPanel({ token, loading, onLogout }: { token: string; loading: b
                 {durationText(p.minutes)} · {p.devices} device{p.devices > 1 ? "s" : ""}
                 {p.speedMbps ? ` · ${p.speedMbps} Mbps` : ""}
               </div>
-              <StatusPill status={p.visible ? "active" : "hidden"} title={p.visible ? "Customers can buy this" : "Customers can't see this"} />
+              <span className={cn("mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold", p.visible ? "bg-success/15 text-success" : "bg-muted text-muted-foreground")}>
+                {p.visible ? "On sale" : "Hidden"}
+              </span>
             </div>
             <div className="flex shrink-0 gap-1">
               <Button size="icon" variant="ghost" aria-label={`Edit ${p.label}`} onClick={() => edit(p)} disabled={busy === p.id}>
