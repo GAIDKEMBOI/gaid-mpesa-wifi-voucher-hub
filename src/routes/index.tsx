@@ -57,7 +57,7 @@ export const Route = createFileRoute("/")({
       { title: "Sign in to GAID WIFI SERVICES — Fast & Affordable" },
       {
         name: "description",
-        content: "Get online with GAID WIFI SERVICES. Affordable WiFi packages, prepaid credit, M-Pesa and free WiFi 6-8 AM daily.",
+        content: "Get online with GAID WIFI SERVICES. Affordable WiFi packages, prepaid credit, M-Pesa and 25 free minutes every morning (6-8 AM).",
       },
       { property: "og:title", content: "GAID WIFI SERVICES — Fast & Affordable" },
       { property: "og:description", content: "Affordable WiFi packages · Pay with M-Pesa · 25 free minutes daily, 6-8 AM" },
