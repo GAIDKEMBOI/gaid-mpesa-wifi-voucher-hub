@@ -178,7 +178,7 @@ export async function useSlot(phone: string, subscriptionId: string, mac: string
   return { ok: true as const, expiry: expiry.toISOString() };
 }
 
-/** Free WiFi 6-8 AM: once per account and once per device each day, until 8:00 AM. */
+/** Free WiFi: 25 minutes, once per account and once per device each day, claimed between 6:00 and 8:00 AM. */
 export async function claimFreeWifi(phone: string, mac: string) {
   const now = new Date();
   if (!isFreeWifiTime(now))
