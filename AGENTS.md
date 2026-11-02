@@ -10,7 +10,8 @@
 <!-- LOVABLE:END -->
 
 ## Architecture rules (GAID WIFI SERVICES)
-- Business rules (packages, prices, phone/MAC/voucher formats) live only in `src/lib/wifi.ts` and are covered by `src/test/wifi-rules.test.ts`; why: one source of truth shared by portal, admin and server.
+- Business rules (package validation, phone/MAC/voucher formats, limits) live only in `src/lib/wifi.ts` and are covered by `src/test/wifi-rules.test.ts`; why: one source of truth shared by portal, admin and server.
+- The package list lives in the `wifi_packages` table, read only via `src/lib/packages.server.ts` (`findStoredPackage` scopes: `sale` for customer purchases, `admin` for manual grants/vouchers, `any` when honouring an already-paid payment or voucher). Packages are never deleted, only flagged `removed`, and ids `free`/`credit` are reserved. Why: admin edits prices without code changes, and old records keep their names.
 - All database access goes through server functions using the service-role client; tables have RLS on with no policies. Why: customers are anonymous and admin uses a signed token, not database accounts.
 - Admin auth: a single `admin_account` row holds a PBKDF2 hash (created once on first visit to /admin; setup closes once the row exists); `requireAdmin` checks an HMAC-signed token (ADMIN_SESSION_SECRET) whose version must match `session_version`, and failed tries are logged in `admin_login_attempts` for lockout. Why: no default credentials, and changing the password revokes old sessions.
 - M-Pesa (Daraja) lives in `src/lib/mpesa.server.ts` and falls back to mock mode when keys are missing; callbacks are verified with a per-transaction secret token in the callback URL. Why: Daraja callbacks are unsigned.

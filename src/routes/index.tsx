@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Gift, Loader2, LogOut, Plus, RefreshCw, Smartphone, Wifi, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -10,7 +10,6 @@ import {
   FREE_WIFI_END_HOUR,
   FREE_WIFI_START_HOUR,
   OTP_LENGTH,
-  PACKAGES,
   TOPUP_MAX,
   TOPUP_MIN,
   formatTimeLeft,
@@ -20,7 +19,7 @@ import {
   packageLine,
   type WifiPackage,
 } from "@/lib/wifi";
-import { checkPayment, getAccessStatus, redeemVoucher } from "@/lib/portal.functions";
+import { checkPayment, getAccessStatus, getPortalPackages, redeemVoucher } from "@/lib/portal.functions";
 import {
   buyPackage,
   claimFreeWifiNow,
@@ -38,7 +37,15 @@ interface PortalSearch {
   "link-orig"?: string | undefined;
 }
 
+// Packages the admin has on sale; loaded with the page so the list shows instantly.
+const portalPackagesQuery = queryOptions({
+  queryKey: ["portal-packages"],
+  queryFn: () => getPortalPackages(),
+  staleTime: 60_000,
+});
+
 export const Route = createFileRoute("/")({
+  loader: ({ context }) => context.queryClient.ensureQueryData(portalPackagesQuery),
   validateSearch: (s: Record<string, unknown>): PortalSearch => ({
     mac: typeof s["mac"] === "string" ? s["mac"] : undefined,
     ip: typeof s["ip"] === "string" ? s["ip"] : undefined,
@@ -49,10 +56,10 @@ export const Route = createFileRoute("/")({
       { title: "Sign in to GAID WIFI SERVICES — Fast & Affordable" },
       {
         name: "description",
-        content: "Get online with GAID WIFI SERVICES. 30 minutes from Sh5. Prepaid credit, M-Pesa and free WiFi 6-8 AM daily.",
+        content: "Get online with GAID WIFI SERVICES. Affordable WiFi packages, prepaid credit, M-Pesa and free WiFi 6-8 AM daily.",
       },
       { property: "og:title", content: "GAID WIFI SERVICES — Fast & Affordable" },
-      { property: "og:description", content: "Sh5 = 30 Mins · Sh45 = 24 Hours · 2-device packages · Free WiFi Kila Siku 6-8 AM" },
+      { property: "og:description", content: "Affordable WiFi packages · Pay with M-Pesa · Free WiFi Kila Siku 6-8 AM" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -685,7 +692,8 @@ function Offers({ busy, disabled, onBuy }: { busy: string | null; disabled: bool
     { id: "one", label: "1 Device" },
     { id: "multi", label: "2+ Devices" },
   ];
-  const list = PACKAGES.filter((p) => offer === "all" || (offer === "one" ? p.devices === 1 : p.devices > 1));
+  const { data: packages } = useSuspenseQuery(portalPackagesQuery);
+  const list = packages.filter((p) => offer === "all" || (offer === "one" ? p.devices === 1 : p.devices > 1));
   return (
     <section>
       <h3 className="mb-2 font-semibold">Offers</h3>
@@ -705,6 +713,11 @@ function Offers({ busy, disabled, onBuy }: { busy: string | null; disabled: bool
           </button>
         ))}
       </div>
+      {list.length === 0 && (
+        <p className="rounded-2xl border border-border bg-card p-4 text-center text-sm text-muted-foreground">
+          {packages.length === 0 ? "No packages available right now. Please check back soon." : "No packages in this group."}
+        </p>
+      )}
       <ul className="space-y-2">
         {list.map((p) => (
           <li key={p.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 shadow-card">

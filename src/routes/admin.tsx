@@ -1091,3 +1091,242 @@ function CustomersPanel({ token, now, onLogout }: { token: string; now: number; 
     </div>
   );
 }
+
+// ---------- Packages tab: create, edit, hide and remove WiFi packages ----------
+
+type PkgForm = {
+  id: string | null;
+  label: string;
+  price: string;
+  amount: string;
+  unit: DurationUnit;
+  devices: string;
+  speed: string;
+  visible: boolean;
+};
+
+const EMPTY_PKG_FORM: PkgForm = { id: null, label: "", price: "", amount: "1", unit: "hours", devices: "1", speed: "", visible: true };
+
+function durationText(minutes: number): string {
+  const { amount, unit } = splitDuration(minutes);
+  const word = unit === "days" ? "day" : unit === "hours" ? "hour" : "minute";
+  return `${amount} ${word}${amount === 1 ? "" : "s"}`;
+}
+
+function PackagesPanel({ token, loading, onLogout }: { token: string; loading: boolean; onLogout: () => void }) {
+  const qc = useQueryClient();
+  const list = useContext(PackagesCtx);
+  const saveFn = useServerFn(savePackage);
+  const stateFn = useServerFn(setPackageState);
+  const [form, setForm] = useState<PkgForm | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const active = list.filter((p) => !p.removed);
+  const removed = list.filter((p) => p.removed);
+
+  const parsed = form
+    ? {
+        label: form.label.trim().replace(/\s+/g, " "),
+        price: Number(form.price),
+        minutes: Number(form.amount) * DURATION_UNIT_MINUTES[form.unit],
+        devices: Number(form.devices),
+        speedMbps: form.speed.trim() ? Number(form.speed) : null,
+      }
+    : null;
+  const problem = parsed ? packageProblem(parsed) : null;
+
+  function edit(p: AdminPackage) {
+    const d = splitDuration(p.minutes);
+    setForm({
+      id: p.id,
+      label: p.label,
+      price: String(p.price),
+      amount: String(d.amount),
+      unit: d.unit,
+      devices: String(p.devices),
+      speed: p.speedMbps ? String(p.speedMbps) : "",
+      visible: p.visible,
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  const reload = () => qc.invalidateQueries({ queryKey: ["packages"] });
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form || !parsed || problem) return;
+    setBusy("form");
+    try {
+      const r = await saveFn({ data: { token, id: form.id, ...parsed, visible: form.visible } });
+      if (!r.ok) return void toast.error(r.error);
+      toast.success(form.id ? "Package saved" : "Package added");
+      setForm(null);
+      await reload();
+    } catch (err) {
+      if (!handleAuthError(err, onLogout)) toast.error("Could not save the package");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function change(p: AdminPackage, action: "show" | "hide" | "remove" | "restore") {
+    if (action === "remove" && !window.confirm(`Remove "${p.label}"? Customers will no longer see it. People already online keep their time.`)) return;
+    setBusy(p.id);
+    try {
+      const r = await stateFn({ data: { token, id: p.id, action } });
+      if (!r.ok) return void toast.error(r.error);
+      toast.success(
+        action === "show" ? "Now on sale" : action === "hide" ? "Hidden from customers" : action === "remove" ? "Package removed" : "Package restored (hidden — tap Show to sell it)",
+      );
+      if (form?.id === p.id) setForm(null);
+      await reload();
+    } catch (err) {
+      if (!handleAuthError(err, onLogout)) toast.error("Something went wrong");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const set = (k: keyof PkgForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((f) => (f ? { ...f, [k]: e.target.value } : f));
+
+  return (
+    <div className="space-y-4">
+      {form ? (
+        <form onSubmit={save} className="space-y-4 rounded-2xl border border-primary bg-card p-4">
+          <h3 className="font-semibold">{form.id ? "Edit package" : "New package"}</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1 text-sm">
+              <span className="text-muted-foreground">Name</span>
+              <Input value={form.label} onChange={set("label")} placeholder="e.g. 3 Hours" maxLength={40} className="h-11" />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="text-muted-foreground">Price (KES)</span>
+              <Input type="number" inputMode="numeric" min={1} value={form.price} onChange={set("price")} placeholder="e.g. 15" className="h-11" />
+            </label>
+            <div className="space-y-1 text-sm">
+              <span className="text-muted-foreground">Time</span>
+              <div className="flex gap-2">
+                <Input type="number" inputMode="numeric" min={1} value={form.amount} onChange={set("amount")} className="h-11 w-28" aria-label="Time amount" />
+                <select
+                  value={form.unit}
+                  onChange={set("unit")}
+                  aria-label="Time unit"
+                  className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="minutes">Minutes</option>
+                  <option value="hours">Hours</option>
+                  <option value="days">Days</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">Devices</span>
+                <Input type="number" inputMode="numeric" min={1} value={form.devices} onChange={set("devices")} className="h-11" />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">Speed Mbps (optional)</span>
+                <Input type="number" inputMode="numeric" min={1} value={form.speed} onChange={set("speed")} placeholder="—" className="h-11" />
+              </label>
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.visible}
+              onChange={(e) => setForm((f) => (f ? { ...f, visible: e.target.checked } : f))}
+              className="h-4 w-4 accent-primary"
+            />
+            Show to customers on the WiFi page
+          </label>
+          <div className="rounded-xl bg-muted p-3 text-sm">
+            {problem ? (
+              <span className="text-destructive">{problem}</span>
+            ) : parsed ? (
+              <>
+                Customers see: <strong>{packageLine({ id: "preview", ...parsed })}</strong> · {durationText(parsed.minutes)}
+              </>
+            ) : null}
+          </div>
+          {form.id && <p className="text-xs text-muted-foreground">Changes apply to new purchases. Customers already online keep the time they bought.</p>}
+          <div className="flex gap-2">
+            <Button type="submit" disabled={busy === "form" || Boolean(problem)}>
+              {busy === "form" ? <Loader2 className="animate-spin" /> : <CheckCircle2 />} {form.id ? "Save changes" : "Add package"}
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setForm(null)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-4">
+          <p className="mr-auto text-sm text-muted-foreground">
+            These are the packages customers can buy. Changes show on the WiFi page straight away.
+          </p>
+          <Button onClick={() => setForm(EMPTY_PKG_FORM)}>
+            <Plus /> Add package
+          </Button>
+        </div>
+      )}
+
+      {loading && <p className="text-sm text-muted-foreground">Loading packages…</p>}
+      {!loading && active.length === 0 && <p className="text-sm text-muted-foreground">No packages yet. Add one so customers can buy.</p>}
+
+      <ul className="grid gap-2 sm:grid-cols-2">
+        {active.map((p) => (
+          <li key={p.id} className={cn("flex items-center gap-3 rounded-2xl border bg-card p-3 shadow-card", p.visible ? "border-border" : "border-dashed border-border opacity-75")}>
+            <span className="font-display flex h-12 w-14 shrink-0 items-center justify-center rounded-xl bg-primary text-lg text-primary-foreground">
+              {p.price}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold">{p.label}</div>
+              <div className="text-xs text-muted-foreground">
+                {durationText(p.minutes)} · {p.devices} device{p.devices > 1 ? "s" : ""}
+                {p.speedMbps ? ` · ${p.speedMbps} Mbps` : ""}
+              </div>
+              <span className={cn("mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold", p.visible ? "bg-success/15 text-success" : "bg-muted text-muted-foreground")}>
+                {p.visible ? "On sale" : "Hidden"}
+              </span>
+            </div>
+            <div className="flex shrink-0 gap-1">
+              <Button size="icon" variant="ghost" aria-label={`Edit ${p.label}`} onClick={() => edit(p)} disabled={busy === p.id}>
+                <Pencil />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={p.visible ? `Hide ${p.label}` : `Show ${p.label}`}
+                onClick={() => change(p, p.visible ? "hide" : "show")}
+                disabled={busy === p.id}
+              >
+                {p.visible ? <EyeOff /> : <Eye />}
+              </Button>
+              <Button size="icon" variant="ghost" aria-label={`Remove ${p.label}`} onClick={() => change(p, "remove")} disabled={busy === p.id}>
+                <Trash2 className="text-destructive" />
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      {removed.length > 0 && (
+        <details className="rounded-2xl border border-border bg-card p-4">
+          <summary className="cursor-pointer text-sm font-semibold">Removed packages ({removed.length})</summary>
+          <p className="mt-2 text-xs text-muted-foreground">Kept so old payments and vouchers still show their name. Unused vouchers for these still work.</p>
+          <ul className="mt-3 space-y-2">
+            {removed.map((p) => (
+              <li key={p.id} className="flex items-center gap-3 text-sm">
+                <span className="mr-auto">
+                  {p.label} · KES {p.price} · {durationText(p.minutes)}
+                </span>
+                <Button size="sm" variant="outline" onClick={() => change(p, "restore")} disabled={busy === p.id}>
+                  <RotateCcw /> Restore
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}

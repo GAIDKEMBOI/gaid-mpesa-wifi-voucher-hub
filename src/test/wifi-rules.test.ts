@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   computeExpiry,
   formatTimeLeft,
-  getPackage,
+  STARTING_PACKAGES,
+  findPackage,
+  packageProblem,
+  newPackageId,
+  splitDuration,
   makeVoucherCode,
   normalizeMac,
   normalizePhone,
@@ -23,29 +27,31 @@ import {
   kenyaDay,
 } from "@/lib/wifi";
 
+const pkg = (id: string) => findPackage(STARTING_PACKAGES, id);
+
 describe("packages", () => {
   const cases: [string, number, number][] = [
     ["30m", 5, 30], ["1h", 10, 60], ["2h", 12, 120], ["4h", 20, 240],
     ["12h", 30, 720], ["24h", 45, 1440], ["7d", 200, 10080], ["30d", 600, 43200],
   ];
   for (const [id, price, minutes] of cases)
-    it(`${id} costs ${price} KES`, () => expect(getPackage(id)).toMatchObject({ price, minutes }));
+    it(`${id} costs ${price} KES`, () => expect(pkg(id)).toMatchObject({ price, minutes }));
 });
 
 describe("expiry", () => {
   const now = new Date("2026-01-01T10:00:00Z");
   it("starts from now for a new customer", () => {
-    expect(computeExpiry(getPackage("1h")!, now).toISOString()).toBe("2026-01-01T11:00:00.000Z");
+    expect(computeExpiry(pkg("1h")!, now).toISOString()).toBe("2026-01-01T11:00:00.000Z");
   });
   it("adds time on top of an unexpired session", () => {
     const current = new Date("2026-01-01T10:30:00Z");
-    expect(computeExpiry(getPackage("1h")!, now, current).toISOString()).toBe(
+    expect(computeExpiry(pkg("1h")!, now, current).toISOString()).toBe(
       "2026-01-01T11:30:00.000Z",
     );
   });
   it("ignores an already expired session", () => {
     const old = new Date("2026-01-01T09:00:00Z");
-    expect(computeExpiry(getPackage("4h")!, now, old).toISOString()).toBe(
+    expect(computeExpiry(pkg("4h")!, now, old).toISOString()).toBe(
       "2026-01-01T14:00:00.000Z",
     );
   });
@@ -144,8 +150,8 @@ describe("two-device packages", () => {
   const cases: [string, number, number][] = [["4h-2d", 30, 240], ["24h-2d", 70, 1440], ["3d-2d", 135, 4320]];
   for (const [id, price, minutes] of cases)
     it(`${id} costs ${price} KES for 2 devices at 5 Mbps`, () =>
-      expect(getPackage(id)).toMatchObject({ price, minutes, devices: 2, speedMbps: 5 }));
-  it("single-device packages allow 1 device", () => expect(getPackage("24h")?.devices).toBe(1));
+      expect(pkg(id)).toMatchObject({ price, minutes, devices: 2, speedMbps: 5 }));
+  it("single-device packages allow 1 device", () => expect(pkg("24h")?.devices).toBe(1));
 });
 
 describe("prepaid credit", () => {
@@ -191,4 +197,34 @@ describe("admin credit change", () => {
   it("can remove up to what the customer has", () => expect(creditChangeProblem(-20, 20)).toBeNull());
   it("cannot remove more than the customer has", () => expect(creditChangeProblem(-21, 20)).not.toBeNull());
   it("zero is not a change", () => expect(creditChangeProblem(0, 20)).not.toBeNull());
+});
+
+describe("admin package editing", () => {
+  const ok = { label: "3 Hours", price: 15, minutes: 180, devices: 1, speedMbps: null };
+  it("accepts a normal package", () => expect(packageProblem(ok)).toBeNull());
+  it("needs a name", () => expect(packageProblem({ ...ok, label: " " })).not.toBeNull());
+  it("price must be at least Sh1", () => expect(packageProblem({ ...ok, price: 0 })).not.toBeNull());
+  it("price must be whole shillings", () => expect(packageProblem({ ...ok, price: 12.5 })).not.toBeNull());
+  it("price can't exceed Sh100,000", () => expect(packageProblem({ ...ok, price: 100_001 })).not.toBeNull());
+  it("time must be at least 1 minute", () => expect(packageProblem({ ...ok, minutes: 0 })).not.toBeNull());
+  it("time can't exceed 1 year", () => expect(packageProblem({ ...ok, minutes: 365 * 24 * 60 + 1 })).not.toBeNull());
+  it("needs at least 1 device", () => expect(packageProblem({ ...ok, devices: 0 })).not.toBeNull());
+  it("at most 20 devices", () => expect(packageProblem({ ...ok, devices: 21 })).not.toBeNull());
+  it("speed is optional but must be whole Mbps", () => {
+    expect(packageProblem({ ...ok, speedMbps: 5 })).toBeNull();
+    expect(packageProblem({ ...ok, speedMbps: 0 })).not.toBeNull();
+  });
+  it("new id comes from the name and never clashes", () => {
+    expect(newPackageId("2 Hours Promo", [])).toBe("2-hours-promo");
+    expect(newPackageId("1H", ["1h"])).toBe("1h-2");
+  });
+  it("never reuses the ids for free WiFi or credit top-ups", () => {
+    expect(newPackageId("Free", [])).toBe("free-2");
+    expect(newPackageId("Credit", [])).toBe("credit-2");
+  });
+  it("shows time in the biggest even unit", () => {
+    expect(splitDuration(1440)).toEqual({ amount: 1, unit: "days" });
+    expect(splitDuration(120)).toEqual({ amount: 2, unit: "hours" });
+    expect(splitDuration(90)).toEqual({ amount: 90, unit: "minutes" });
+  });
 });
