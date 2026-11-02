@@ -1,8 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { queryOptions, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, Gift, Loader2, LogOut, Plus, RefreshCw, Smartphone, Wifi, XCircle } from "lucide-react";
+import { CheckCircle2, Gift, Loader2, LogOut, Plus, RefreshCw, ShieldCheck, Smartphone, Wifi, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -515,8 +515,14 @@ function Portal() {
           />
         )}
 
-        <footer className="mt-auto pt-6 text-center text-xs text-muted-foreground">
-          © GAID WIFI SERVICES · Powered by Lipa na M-Pesa
+        <footer className="mt-auto space-y-2 border-t border-border pt-4 text-center text-xs text-muted-foreground">
+          <div>© GAID WIFI SERVICES · Powered by Lipa na M-Pesa</div>
+          <Link
+            to="/admin"
+            className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 font-semibold text-primary transition-colors hover:bg-accent"
+          >
+            <ShieldCheck className="h-3.5 w-3.5" /> Admin login
+          </Link>
         </footer>
       </div>
     </main>
