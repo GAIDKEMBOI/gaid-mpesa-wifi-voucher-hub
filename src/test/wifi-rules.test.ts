@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   computeExpiry,
   formatTimeLeft,
-  getPackage,
+  STARTING_PACKAGES,
+  findPackage,
+  packageProblem,
+  newPackageId,
+  splitDuration,
   makeVoucherCode,
   normalizeMac,
   normalizePhone,
@@ -29,23 +33,23 @@ describe("packages", () => {
     ["12h", 30, 720], ["24h", 45, 1440], ["7d", 200, 10080], ["30d", 600, 43200],
   ];
   for (const [id, price, minutes] of cases)
-    it(`${id} costs ${price} KES`, () => expect(getPackage(id)).toMatchObject({ price, minutes }));
+    it(`${id} costs ${price} KES`, () => expect(pkg(id)).toMatchObject({ price, minutes }));
 });
 
 describe("expiry", () => {
   const now = new Date("2026-01-01T10:00:00Z");
   it("starts from now for a new customer", () => {
-    expect(computeExpiry(getPackage("1h")!, now).toISOString()).toBe("2026-01-01T11:00:00.000Z");
+    expect(computeExpiry(pkg("1h")!, now).toISOString()).toBe("2026-01-01T11:00:00.000Z");
   });
   it("adds time on top of an unexpired session", () => {
     const current = new Date("2026-01-01T10:30:00Z");
-    expect(computeExpiry(getPackage("1h")!, now, current).toISOString()).toBe(
+    expect(computeExpiry(pkg("1h")!, now, current).toISOString()).toBe(
       "2026-01-01T11:30:00.000Z",
     );
   });
   it("ignores an already expired session", () => {
     const old = new Date("2026-01-01T09:00:00Z");
-    expect(computeExpiry(getPackage("4h")!, now, old).toISOString()).toBe(
+    expect(computeExpiry(pkg("4h")!, now, old).toISOString()).toBe(
       "2026-01-01T14:00:00.000Z",
     );
   });
@@ -144,8 +148,8 @@ describe("two-device packages", () => {
   const cases: [string, number, number][] = [["4h-2d", 30, 240], ["24h-2d", 70, 1440], ["3d-2d", 135, 4320]];
   for (const [id, price, minutes] of cases)
     it(`${id} costs ${price} KES for 2 devices at 5 Mbps`, () =>
-      expect(getPackage(id)).toMatchObject({ price, minutes, devices: 2, speedMbps: 5 }));
-  it("single-device packages allow 1 device", () => expect(getPackage("24h")?.devices).toBe(1));
+      expect(pkg(id)).toMatchObject({ price, minutes, devices: 2, speedMbps: 5 }));
+  it("single-device packages allow 1 device", () => expect(pkg("24h")?.devices).toBe(1));
 });
 
 describe("prepaid credit", () => {

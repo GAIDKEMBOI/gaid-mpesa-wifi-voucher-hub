@@ -56,10 +56,10 @@ export const Route = createFileRoute("/")({
       { title: "Sign in to GAID WIFI SERVICES — Fast & Affordable" },
       {
         name: "description",
-        content: "Get online with GAID WIFI SERVICES. 30 minutes from Sh5. Prepaid credit, M-Pesa and free WiFi 6-8 AM daily.",
+        content: "Get online with GAID WIFI SERVICES. Affordable WiFi packages, prepaid credit, M-Pesa and free WiFi 6-8 AM daily.",
       },
       { property: "og:title", content: "GAID WIFI SERVICES — Fast & Affordable" },
-      { property: "og:description", content: "Sh5 = 30 Mins · Sh45 = 24 Hours · 2-device packages · Free WiFi Kila Siku 6-8 AM" },
+      { property: "og:description", content: "Affordable WiFi packages · Pay with M-Pesa · Free WiFi Kila Siku 6-8 AM" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
