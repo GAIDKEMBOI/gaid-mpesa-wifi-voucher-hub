@@ -169,8 +169,10 @@ describe("free WiFi 6:00-8:00 AM Kenya time", () => {
   it("is free at 7:59 Kenya", () => expect(isFreeWifiTime(new Date("2026-10-27T04:59:00Z"))).toBe(true));
   it("is not free at 8:00 Kenya", () => expect(isFreeWifiTime(new Date("2026-10-27T05:00:00Z"))).toBe(false));
   it("is not free at 5:59 Kenya", () => expect(isFreeWifiTime(new Date("2026-10-27T02:59:00Z"))).toBe(false));
-  it("free session ends at 8:00 Kenya", () =>
-    expect(freeWifiEndsAt(new Date("2026-10-27T03:30:00Z")).toISOString()).toBe("2026-10-27T05:00:00.000Z"));
+  it("free session lasts 25 minutes", () =>
+    expect(freeWifiEndsAt(new Date("2026-10-27T03:30:00Z")).toISOString()).toBe("2026-10-27T03:55:00.000Z"));
+  it("free session claimed at 7:50 still gets the full 25 minutes", () =>
+    expect(freeWifiEndsAt(new Date("2026-10-27T04:50:00Z")).toISOString()).toBe("2026-10-27T05:15:00.000Z"));
   it("Kenya day rolls over at midnight Kenya time", () => expect(kenyaDay(new Date("2026-10-27T21:30:00Z"))).toBe("2026-10-28"));
 });
 

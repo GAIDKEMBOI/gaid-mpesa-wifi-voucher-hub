@@ -257,6 +257,8 @@ export const OTP_MAX_SENDS_PER_HOUR = 5;
 
 export const FREE_WIFI_START_HOUR = 6; // Kenya time
 export const FREE_WIFI_END_HOUR = 8;
+/** Each customer gets this many free minutes, once a day, claimed between 6:00 and 8:00 AM. */
+export const FREE_WIFI_MINUTES = 25;
 
 const KENYA_OFFSET_MS = 3 * 3600_000;
 
@@ -270,9 +272,9 @@ export function isFreeWifiTime(now: Date): boolean {
   return h >= FREE_WIFI_START_HOUR && h < FREE_WIFI_END_HOUR;
 }
 
-/** 8:00 AM Kenya time on the current Kenya day. */
+/** A free session lasts the full 25 minutes from when it is claimed (even if that runs past 8:00 AM). */
 export function freeWifiEndsAt(now: Date): Date {
-  return new Date(startOfKenyaDay(now).getTime() + FREE_WIFI_END_HOUR * 3600_000);
+  return new Date(now.getTime() + FREE_WIFI_MINUTES * 60_000);
 }
 
 /** Kenya calendar day as YYYY-MM-DD. */

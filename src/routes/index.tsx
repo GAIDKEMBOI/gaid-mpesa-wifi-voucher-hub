@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   FREE_WIFI_END_HOUR,
+  FREE_WIFI_MINUTES,
   FREE_WIFI_START_HOUR,
   OTP_LENGTH,
   TOPUP_MAX,
@@ -59,7 +60,7 @@ export const Route = createFileRoute("/")({
         content: "Get online with GAID WIFI SERVICES. Affordable WiFi packages, prepaid credit, M-Pesa and free WiFi 6-8 AM daily.",
       },
       { property: "og:title", content: "GAID WIFI SERVICES — Fast & Affordable" },
-      { property: "og:description", content: "Affordable WiFi packages · Pay with M-Pesa · Free WiFi Kila Siku 6-8 AM" },
+      { property: "og:description", content: "Affordable WiFi packages · Pay with M-Pesa · 25 free minutes daily, 6-8 AM" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -430,8 +431,8 @@ function Portal() {
                       {acc.freeWifi.claimedToday
                         ? "You've used today's free WiFi. See you tomorrow!"
                         : acc.freeWifi.now
-                          ? "It's free right now. Tap to connect."
-                          : "Come back tomorrow morning to browse free."}
+                          ? `${FREE_WIFI_MINUTES} free minutes, once a day. Tap to connect.`
+                          : `Get ${FREE_WIFI_MINUTES} free minutes every morning, ${FREE_WIFI_START_HOUR}:00-${FREE_WIFI_END_HOUR}:00 AM.`}
                     </div>
                   </div>
                   {acc.freeWifi.now && !acc.freeWifi.claimedToday && (
@@ -441,7 +442,7 @@ function Portal() {
                       disabled={busy === "free"}
                       onClick={() => {
                         const m = needDevice();
-                        if (m) void run("free", () => freeFn({ data: { token, mac: m } }), "Free WiFi is on until 8:00 AM");
+                        if (m) void run("free", () => freeFn({ data: { token, mac: m } }), `Free WiFi is on for ${FREE_WIFI_MINUTES} minutes`);
                       }}
                     >
                       {busy === "free" ? <Loader2 className="animate-spin" /> : "CONNECT"}
